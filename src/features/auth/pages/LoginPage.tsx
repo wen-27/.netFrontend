@@ -47,8 +47,8 @@ export function LoginPage() {
           <p className="mt-1 text-sm text-slate-500">Accede al panel operativo del taller.</p>
         </div>
         <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
-          <FormInput label="Email" type="email" registration={register("email")} error={errors.email} />
-          <FormInput label="Contraseña" type="password" registration={register("password")} error={errors.password} />
+          <FormInput label="Email" type="email" autoComplete="email" registration={register("email")} error={errors.email} />
+          <FormInput label="Contraseña" type="password" autoComplete="current-password" registration={register("password")} error={errors.password} />
           {serverError ? <p className="rounded-md bg-red-50 p-3 text-sm font-semibold text-red-700">{serverError}</p> : null}
           <Button className="w-full" type="submit" isLoading={isSubmitting} icon={<LogIn className="h-4 w-4" />}>Iniciar sesión</Button>
         </form>

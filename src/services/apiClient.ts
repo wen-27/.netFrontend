@@ -2,7 +2,7 @@ import axios, { AxiosError, AxiosResponse } from "axios";
 import { PaginatedResponse, QueryParams } from "../shared/types/common";
 import { tokenStorage } from "./tokenStorage";
 
-const apiBaseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:5213";
+const apiBaseUrl = import.meta.env.VITE_API_URL ?? "";
 
 export const apiClient = axios.create({
   baseURL: apiBaseUrl,

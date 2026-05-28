@@ -37,6 +37,35 @@ import { UserCreatePage } from "../features/users/pages/UserCreatePage";
 import { UserRolesPage } from "../features/users/pages/UserRolesPage";
 import { AuditsListPage } from "../features/audits/pages/AuditsListPage";
 import { CatalogsPage } from "../features/catalogs/pages/CatalogsPage";
+import {
+  ClientApprovalsPage,
+  ClientHistoryPage,
+  ClientMessagesPage,
+  ClientOrderDetailPage,
+  ClientOrdersPage,
+  ClientPaymentNewPage,
+  ClientPaymentsPage,
+  InventoryHistoryPage,
+  InventoryManagerDashboardPage,
+  InventoryProductsPage,
+  InventoryReviewDetailPage,
+  InventoryReviewPage,
+  MechanicOrderDetailPage,
+  MechanicOrdersPage,
+  MechanicRequestsPage,
+  ReceptionDeliveriesPage,
+  ReceptionPaymentsVerificationPage,
+  WarehouseChiefDashboardPage,
+  WarehouseProductFormPage,
+  WarehouseProductsPage,
+  WarehouseStockSubmissionDetailPage,
+  WarehouseStockSubmissionsPage,
+  WorkshopChiefDashboardPage,
+  WorkshopChiefRequestDetailPage,
+  WorkshopChiefRequestsPage,
+  WorkshopServiceFormPage,
+  WorkshopServicesPage,
+} from "../features/operations/pages/OperationsPages";
 
 function HomeRedirect() {
   const role = useAuth((state) => state.role);
@@ -57,14 +86,23 @@ export function AppRouter() {
           <Route element={<RoleGuard allowedRoles={["Admin"]} />}>
             <Route path="/dashboard/admin" element={<AdminDashboardPage />} />
           </Route>
-          <Route element={<RoleGuard allowedRoles={["Receptionist"]} />}>
+          <Route element={<RoleGuard allowedRoles={["Admin", "Receptionist"]} />}>
             <Route path="/dashboard/reception" element={<ReceptionistDashboardPage />} />
           </Route>
-          <Route element={<RoleGuard allowedRoles={["Mechanic"]} />}>
+          <Route element={<RoleGuard allowedRoles={["Admin", "Mechanic"]} />}>
             <Route path="/dashboard/mechanic" element={<MechanicDashboardPage />} />
           </Route>
-          <Route element={<RoleGuard allowedRoles={["Client"]} />}>
+          <Route element={<RoleGuard allowedRoles={["Admin", "Client"]} />}>
             <Route path="/dashboard/client" element={<ClientDashboardPage />} />
+          </Route>
+          <Route element={<RoleGuard allowedRoles={["Admin", "WorkshopChief"]} />}>
+            <Route path="/dashboard/workshop-chief" element={<WorkshopChiefDashboardPage />} />
+          </Route>
+          <Route element={<RoleGuard allowedRoles={["Admin", "WarehouseChief"]} />}>
+            <Route path="/dashboard/warehouse-chief" element={<WarehouseChiefDashboardPage />} />
+          </Route>
+          <Route element={<RoleGuard allowedRoles={["Admin", "InventoryManager"]} />}>
+            <Route path="/dashboard/inventory-manager" element={<InventoryManagerDashboardPage />} />
           </Route>
 
           <Route element={<RoleGuard allowedRoles={moduleRoles.persons} />}>
@@ -85,6 +123,56 @@ export function AppRouter() {
             <Route path="/service-orders" element={<ServiceOrdersListPage />} />
             <Route path="/service-orders/new" element={<ServiceOrderCreatePage />} />
             <Route path="/service-orders/:id" element={<ServiceOrderDetailPage />} />
+          </Route>
+
+          <Route element={<RoleGuard allowedRoles={moduleRoles.mechanic} />}>
+            <Route path="/mechanic/orders" element={<MechanicOrdersPage />} />
+            <Route path="/mechanic/orders/:id" element={<MechanicOrderDetailPage />} />
+            <Route path="/mechanic/requests" element={<MechanicRequestsPage />} />
+          </Route>
+
+          <Route element={<RoleGuard allowedRoles={moduleRoles.workshopChief} />}>
+            <Route path="/workshop-chief/requests" element={<WorkshopChiefRequestsPage />} />
+            <Route path="/workshop-chief/requests/:id" element={<WorkshopChiefRequestDetailPage />} />
+          </Route>
+
+          <Route element={<RoleGuard allowedRoles={moduleRoles.workshopServices} />}>
+            <Route path="/workshop/services" element={<WorkshopServicesPage />} />
+            <Route path="/workshop/services/new" element={<WorkshopServiceFormPage />} />
+            <Route path="/workshop/services/:id/edit" element={<WorkshopServiceFormPage />} />
+          </Route>
+
+          <Route element={<RoleGuard allowedRoles={moduleRoles.client} />}>
+            <Route path="/client/orders" element={<ClientOrdersPage />} />
+            <Route path="/client/orders/:id" element={<ClientOrderDetailPage />} />
+            <Route path="/client/approvals" element={<ClientApprovalsPage />} />
+            <Route path="/client/payments" element={<ClientPaymentsPage />} />
+            <Route path="/client/payments/new" element={<ClientPaymentNewPage />} />
+            <Route path="/client/messages" element={<ClientMessagesPage />} />
+            <Route path="/client/history" element={<ClientHistoryPage />} />
+          </Route>
+
+          <Route element={<RoleGuard allowedRoles={moduleRoles.warehouse} />}>
+            <Route path="/warehouse/products" element={<WarehouseProductsPage />} />
+            <Route path="/warehouse/products/new" element={<WarehouseProductFormPage />} />
+            <Route path="/warehouse/products/:id/edit" element={<WarehouseProductFormPage />} />
+            <Route path="/warehouse/stock-submissions" element={<WarehouseStockSubmissionsPage />} />
+            <Route path="/warehouse/stock-submissions/:id" element={<WarehouseStockSubmissionDetailPage />} />
+          </Route>
+
+          <Route element={<RoleGuard allowedRoles={moduleRoles.inventory} />}>
+            <Route path="/inventory/review" element={<InventoryReviewPage />} />
+            <Route path="/inventory/review/:id" element={<InventoryReviewDetailPage />} />
+            <Route path="/inventory/products" element={<InventoryProductsPage />} />
+            <Route path="/inventory/history" element={<InventoryHistoryPage />} />
+          </Route>
+
+          <Route element={<RoleGuard allowedRoles={moduleRoles.reception} />}>
+            <Route path="/reception/customers" element={<PersonsListPage />} />
+            <Route path="/reception/vehicles" element={<VehiclesListPage />} />
+            <Route path="/reception/service-orders" element={<ServiceOrdersListPage />} />
+            <Route path="/reception/payments-verification" element={<ReceptionPaymentsVerificationPage />} />
+            <Route path="/reception/deliveries" element={<ReceptionDeliveriesPage />} />
           </Route>
 
           <Route element={<RoleGuard allowedRoles={moduleRoles.parts} />}>

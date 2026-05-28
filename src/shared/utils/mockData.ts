@@ -25,14 +25,18 @@ export const mockParts: Part[] = [
 ];
 
 export const mockInvoices: Invoice[] = [
-  { id: "1", number: "FV-1052", customer: "Laura Méndez", orderCode: "OT-2026-0017", date: "2026-05-24", subtotal: 800000, taxes: 152000, total: 952000, paymentStatus: "Pagada" },
-  { id: "2", number: "FV-1053", customer: "Transporte Norte SAS", orderCode: "OT-2026-0016", date: "2026-05-25", subtotal: 1250000, taxes: 237500, total: 1487500, paymentStatus: "Pendiente" },
+  { id: "1", number: "FV-1052", customer: "Laura Méndez", orderCode: "OT-2026-0017", date: "2026-05-24", subtotal: 800000, taxes: 152000, total: 952000, paymentStatus: "Approved" },
+  { id: "2", number: "FV-1053", customer: "Transporte Norte SAS", orderCode: "OT-2026-0016", date: "2026-05-25", subtotal: 1250000, taxes: 237500, total: 1487500, paymentStatus: "PendingPayment" },
 ];
 
 export const mockUsers: UserAccount[] = [
   { id: "1", name: "Admin Taller", email: "admin@autotaller.com", roles: ["Admin"], status: "Activo", lastAccess: "2026-05-27T09:20:00" },
   { id: "2", name: "Diana Recepción", email: "diana@autotaller.com", roles: ["Receptionist"], status: "Activo", lastAccess: "2026-05-27T08:45:00" },
   { id: "3", name: "Carlos Rojas", email: "carlos@autotaller.com", roles: ["Mechanic"], status: "Activo", lastAccess: "2026-05-26T17:05:00" },
+  { id: "4", name: "Sofía Jefe Taller", email: "jefetaller@autotaller.com", roles: ["WorkshopChief"], status: "Activo", lastAccess: "2026-05-27T11:10:00" },
+  { id: "5", name: "Luis Bodega", email: "jefebodega@autotaller.com", roles: ["WarehouseChief"], status: "Activo", lastAccess: "2026-05-27T10:35:00" },
+  { id: "6", name: "María Almacén", email: "jefealmacen@autotaller.com", roles: ["InventoryManager"], status: "Activo", lastAccess: "2026-05-27T10:50:00" },
+  { id: "7", name: "Laura Méndez", email: "cliente@autotaller.com", roles: ["Client"], status: "Activo", lastAccess: "2026-05-27T12:05:00" },
 ];
 
 export const mockAudits: AuditEvent[] = [

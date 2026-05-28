@@ -9,7 +9,7 @@ import { mockAudits, mockParts, mockServiceOrders } from "../../../shared/utils/
 export function AdminDashboardPage() {
   return (
     <>
-      <PageHeader title="Dashboard administrativo" description="Vista operativa global del taller, facturación, inventario y auditoría." />
+      <PageHeader title="Dashboard administrativo" description="Vista global de taller, inventario, bodega, almacén, facturación, pagos y auditoría." />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Órdenes abiertas" value="18" hint="6 con entrega próxima" tone="blue" icon={ClipboardList} />
         <MetricCard label="Completadas del mes" value="42" tone="green" icon={ShieldCheck} />
@@ -30,7 +30,7 @@ export function AdminDashboardPage() {
                   <p className="font-semibold text-slate-900">{order.code}</p>
                   <p className="text-sm text-slate-500">{order.customer} · {order.vehicle}</p>
                 </div>
-                <Badge tone={order.status === "Completada" ? "green" : order.status.includes("repuestos") ? "amber" : "blue"}>{order.status}</Badge>
+                <Badge tone={order.status === "Completada" ? "green" : String(order.status).includes("repuestos") ? "amber" : "blue"}>{order.status}</Badge>
               </div>
             ))}
           </div>

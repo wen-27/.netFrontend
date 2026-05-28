@@ -44,7 +44,11 @@ export function getRoleFromToken(token: string | null): Role | null {
   const normalizedRoles = roles.map((role) => {
     if (role === "Recepcionista") return "Receptionist";
     if (role === "Mecanico") return "Mechanic";
+    if (role === "Mecánico") return "Mechanic";
     if (role === "Cliente") return "Client";
+    if (role === "JefeTaller" || role === "Jefe de Taller") return "WorkshopChief";
+    if (role === "JefeBodega" || role === "Jefe de Bodega") return "WarehouseChief";
+    if (role === "JefeAlmacen" || role === "JefeAlmacén" || role === "Jefe de Almacén") return "InventoryManager";
     return role;
   });
 

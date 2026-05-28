@@ -27,11 +27,162 @@ export type ServiceOrder = {
   code: string;
   customer: string;
   vehicle: string;
-  status: string;
+  status: ServiceOrderStatus | string;
   mechanic: string;
   entryDate: string;
   estimatedDelivery: string;
   estimatedTotal: number;
+  invoiceId?: number;
+  canPay?: boolean;
+  paymentStatus?: PaymentStatus;
+  paymentMessage?: string;
+  deliveryDate?: string;
+};
+
+export type PaymentStatus =
+  | "PendingPayment"
+  | "PendingReceptionVerification"
+  | "Approved"
+  | "Rejected"
+  | "Refunded";
+
+export type AdditionalRequestStatus =
+  | "Draft"
+  | "PendingWorkshopChiefApproval"
+  | "RejectedByWorkshopChief"
+  | "PendingClientApproval"
+  | "RejectedByClient"
+  | "ApprovedByClient"
+  | "AddedToOrder";
+
+export type OrderServiceStatus =
+  | "Pending"
+  | "Approved"
+  | "InProgress"
+  | "WaitingForParts"
+  | "Completed"
+  | "Rejected"
+  | "Invoiced";
+
+export type ServiceOrderStatus =
+  | "Created"
+  | "PendingAssignment"
+  | "Assigned"
+  | "InProgress"
+  | "PendingClientApproval"
+  | "WaitingForPayment"
+  | "PaymentUnderReview"
+  | "Paid"
+  | "ReadyForDelivery"
+  | "Delivered"
+  | "Cancelled";
+
+export type StockSubmissionStatus =
+  | "Draft"
+  | "PendingInventoryManagerReview"
+  | "RejectedByInventoryManager"
+  | "ApprovedByInventoryManager"
+  | "AddedToInventory";
+
+export type WorkshopServiceStatus = "Active" | "Inactive";
+
+export type OrderServiceItem = {
+  id: string;
+  name: string;
+  status: OrderServiceStatus;
+  parts: string[];
+  price: number;
+};
+
+export type AdditionalRequest = {
+  id: string;
+  createdAt: string;
+  orderId: string;
+  orderCode: string;
+  customer: string;
+  vehicle: string;
+  mechanic: string;
+  requestType: "Service" | "Part";
+  suggestedService: string;
+  suggestedPart?: string;
+  quantity?: number;
+  problemDescription: string;
+  technicalJustification: string;
+  observations?: string;
+  workshopChiefComment?: string;
+  clientComment?: string;
+  estimatedPrice: number;
+  status: AdditionalRequestStatus;
+  priority: "Baja" | "Media" | "Alta";
+  decisionHistory: string[];
+};
+
+export type WarehouseProduct = {
+  id: string;
+  name: string;
+  referenceCode: string;
+  supplier: string;
+  supplierPrice: number;
+  profitPercentage: number;
+  salePrice: number;
+  quantity: number;
+  category: string;
+  brand: string;
+  description: string;
+  minimumStock: number;
+  observations?: string;
+};
+
+export type StockSubmission = WarehouseProduct & {
+  submissionId: string;
+  submittedAt: string;
+  warehouseChief: string;
+  status: StockSubmissionStatus;
+  warehouseComment?: string;
+  inventoryManagerComment?: string;
+};
+
+export type WorkshopServicePart = {
+  partId: string;
+  name: string;
+  salePrice: number;
+  quantity: number;
+};
+
+export type WorkshopService = {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  parts: WorkshopServicePart[];
+  laborPercentage: number;
+  partsTotal: number;
+  laborValue: number;
+  finalPrice: number;
+  status: WorkshopServiceStatus;
+};
+
+export type ClientPayment = {
+  id: string;
+  orderId: string;
+  orderCode: string;
+  invoiceNumber: string;
+  customer: string;
+  method: string;
+  amount: number;
+  reference: string;
+  date: string;
+  status: PaymentStatus;
+  deliveryDate?: string;
+};
+
+export type ClientPaymentRequest = {
+  invoiceId: number;
+  paymentMethodId: number;
+  amount: number;
+  cardLastFourDigits?: string | null;
+  cardHolderName?: string | null;
+  cardBrand?: string | null;
 };
 
 export type Part = {
