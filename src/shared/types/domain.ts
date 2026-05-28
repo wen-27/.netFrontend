@@ -37,6 +37,10 @@ export type ServiceOrder = {
   paymentStatus?: PaymentStatus;
   paymentMessage?: string;
   deliveryDate?: string;
+  workPerformed?: string;
+  generalDescription?: string;
+  orderServices?: OrderServiceItem[];
+  additionalRequests?: AdditionalRequest[];
 };
 
 export type PaymentStatus =
@@ -91,6 +95,7 @@ export type OrderServiceItem = {
   name: string;
   status: OrderServiceStatus;
   parts: string[];
+  workPerformed?: string;
   price: number;
 };
 
@@ -168,6 +173,7 @@ export type ClientPayment = {
   orderCode: string;
   invoiceNumber: string;
   customer: string;
+  clientNumber?: string;
   method: string;
   amount: number;
   reference: string;
@@ -178,6 +184,7 @@ export type ClientPayment = {
 
 export type ClientPaymentRequest = {
   invoiceId: number;
+  serviceOrderId?: number;
   paymentMethodId: number;
   amount: number;
   cardLastFourDigits?: string | null;

@@ -1,10 +1,9 @@
 import { apiClient, getPaginated } from "../../../services/apiClient";
 import { QueryParams } from "../../../shared/types/common";
 import { Person } from "../../../shared/types/domain";
-import { mockPersons } from "../../../shared/utils/mockData";
 
 export const personsService = {
-  list: (params: QueryParams) => getPaginated<Person>("/api/persons", params, mockPersons),
+  list: (params: QueryParams) => getPaginated<Person>("/api/persons", params),
   getById: (id: string) => apiClient.get(`/api/persons/${id}`),
   create: (payload: { firstNames: string; lastNames: string }) => apiClient.post("/api/persons", payload),
   update: (id: string, payload: unknown) => apiClient.put(`/api/persons/${id}`, payload),

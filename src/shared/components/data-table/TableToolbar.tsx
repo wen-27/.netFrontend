@@ -5,10 +5,11 @@ type TableToolbarProps = {
   search: string;
   placeholder?: string;
   onSearchChange: (value: string) => void;
+  onFiltersClick?: () => void;
   children?: React.ReactNode;
 };
 
-export function TableToolbar({ search, placeholder = "Buscar...", onSearchChange, children }: TableToolbarProps) {
+export function TableToolbar({ search, placeholder = "Buscar...", onSearchChange, onFiltersClick, children }: TableToolbarProps) {
   return (
     <div className="flex flex-col gap-3 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
       <label className="relative w-full max-w-md">
@@ -22,7 +23,7 @@ export function TableToolbar({ search, placeholder = "Buscar...", onSearchChange
       </label>
       <div className="flex flex-wrap items-center gap-2">
         {children}
-        <Button variant="secondary" icon={<SlidersHorizontal className="h-4 w-4" />}>Filtros</Button>
+        <Button type="button" variant="secondary" icon={<SlidersHorizontal className="h-4 w-4" />} onClick={onFiltersClick}>Filtros</Button>
       </div>
     </div>
   );

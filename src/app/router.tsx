@@ -43,6 +43,7 @@ import {
   ClientMessagesPage,
   ClientOrderDetailPage,
   ClientOrdersPage,
+  ClientOrderRequestsPage,
   ClientPaymentNewPage,
   ClientPaymentsPage,
   InventoryHistoryPage,
@@ -146,6 +147,7 @@ export function AppRouter() {
             <Route path="/client/orders" element={<ClientOrdersPage />} />
             <Route path="/client/orders/:id" element={<ClientOrderDetailPage />} />
             <Route path="/client/approvals" element={<ClientApprovalsPage />} />
+            <Route path="/client/order-requests" element={<ClientOrderRequestsPage />} />
             <Route path="/client/payments" element={<ClientPaymentsPage />} />
             <Route path="/client/payments/new" element={<ClientPaymentNewPage />} />
             <Route path="/client/messages" element={<ClientMessagesPage />} />

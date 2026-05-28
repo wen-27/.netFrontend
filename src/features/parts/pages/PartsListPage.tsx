@@ -37,7 +37,7 @@ export function PartsListPage({ lowStock = false }: { lowStock?: boolean }) {
   return (
     <>
       <PageHeader title={lowStock ? "Repuestos bajo stock" : "Inventario de repuestos"} description="Gestión de repuestos, marcas, categorías y disponibilidad." actions={<Button icon={<Plus className="h-4 w-4" />}><Link to="/parts/new">Crear repuesto</Link></Button>} />
-      <DataTable data={query.data?.data ?? []} columns={columns} isLoading={query.isLoading} isError={query.isError} totalCount={query.data?.totalCount ?? 0} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por código, descripción o marca" />} />
+      <DataTable data={query.data?.data ?? []} columns={columns} isLoading={query.isLoading} isError={query.isError} error={query.error} totalCount={query.data?.totalCount ?? 0} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por código, descripción o marca" />} />
     </>
   );
 }

@@ -8,12 +8,6 @@ export type CatalogItem = {
   status: string;
 };
 
-const mockCatalogs: CatalogItem[] = [
-  { id: "1", name: "Toyota", code: "TOY", status: "Activo" },
-  { id: "2", name: "Sedán", code: "SED", status: "Activo" },
-  { id: "3", name: "Transferencia", code: "BANK", status: "Activo" },
-];
-
 export const catalogsService = {
-  list: (endpoint: string, params: QueryParams) => getPaginated<CatalogItem>(endpoint, params, mockCatalogs),
+  list: (endpoint: string, params: QueryParams) => getPaginated<CatalogItem>(endpoint, params),
 };

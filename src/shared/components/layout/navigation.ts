@@ -74,6 +74,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "Mi dashboard", path: "/dashboard/client", icon: Gauge },
     { label: "Mis órdenes", path: "/client/orders", icon: ClipboardList },
     { label: "Órdenes por aprobar", path: "/client/approvals", icon: FileText },
+    { label: "Solicitudes de órdenes", path: "/client/order-requests", icon: MessageSquare },
     { label: "Facturas", path: "/invoices", icon: Receipt },
     { label: "Pagos", path: "/client/payments", icon: CreditCard },
     { label: "Mensajes", path: "/client/messages", icon: MessageSquare },
@@ -84,7 +85,6 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "Solicitudes de mecánicos", path: "/workshop-chief/requests", icon: FileText },
     { label: "Servicios del taller", path: "/workshop/services", icon: Wrench },
     { label: "Órdenes activas", path: "/service-orders", icon: ClipboardList },
-    { label: "Comentarios técnicos", path: "/workshop-chief/requests", icon: MessageSquare },
   ],
   WarehouseChief: [
     { label: "Dashboard", path: "/dashboard/warehouse-chief", icon: Gauge },

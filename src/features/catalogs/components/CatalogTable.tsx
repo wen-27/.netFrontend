@@ -15,5 +15,5 @@ const columns: ColumnDef<CatalogItem>[] = [
 export function CatalogTable({ endpoint }: { endpoint: string }) {
   const table = useTableQueryState();
   const query = useQuery({ queryKey: ["catalogs", endpoint, table.page, table.pageSize, table.search], queryFn: () => catalogsService.list(endpoint, table.params) });
-  return <DataTable data={query.data?.data ?? []} columns={columns} isLoading={query.isLoading} isError={query.isError} totalCount={query.data?.totalCount ?? 0} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar catálogo" />} />;
+  return <DataTable data={query.data?.data ?? []} columns={columns} isLoading={query.isLoading} isError={query.isError} error={query.error} totalCount={query.data?.totalCount ?? 0} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar catálogo" />} />;
 }

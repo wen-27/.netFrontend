@@ -27,7 +27,7 @@ export function UsersListPage() {
   return (
     <>
       <PageHeader title="Usuarios y roles" description="Administración de usuarios internos, activación y roles." actions={<Button icon={<Plus className="h-4 w-4" />}><Link to="/users/new">Crear usuario</Link></Button>} />
-      <DataTable data={query.data?.data ?? []} columns={columns} isLoading={query.isLoading} isError={query.isError} totalCount={query.data?.totalCount ?? 0} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por nombre, email o rol" />} />
+      <DataTable data={query.data?.data ?? []} columns={columns} isLoading={query.isLoading} isError={query.isError} error={query.error} totalCount={query.data?.totalCount ?? 0} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por nombre, email o rol" />} />
     </>
   );
 }

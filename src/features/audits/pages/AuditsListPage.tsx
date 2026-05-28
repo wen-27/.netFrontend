@@ -29,7 +29,7 @@ export function AuditsListPage() {
   return (
     <>
       <PageHeader title="Auditoría" description="Eventos de seguridad, cambios de entidad y trazabilidad operacional." />
-      <DataTable data={query.data?.data ?? []} columns={columns} isLoading={query.isLoading} isError={query.isError} totalCount={query.data?.totalCount ?? 0} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por usuario, entidad o acción" />} />
+      <DataTable data={query.data?.data ?? []} columns={columns} isLoading={query.isLoading} isError={query.isError} error={query.error} totalCount={query.data?.totalCount ?? 0} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por usuario, entidad o acción" />} />
       <AuditDetailDrawer event={selected} onClose={() => setSelected(null)} />
     </>
   );

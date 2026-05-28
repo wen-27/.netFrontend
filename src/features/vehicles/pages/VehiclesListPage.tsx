@@ -30,7 +30,7 @@ export function VehiclesListPage() {
   return (
     <>
       <PageHeader title="Vehículos" description="Consulta por VIN, cliente, marca, modelo y tipo de vehículo." actions={<Button icon={<Plus className="h-4 w-4" />}><Link to="/vehicles/new">Registrar vehículo</Link></Button>} />
-      <DataTable data={query.data?.data ?? []} columns={columns} isLoading={query.isLoading} isError={query.isError} totalCount={query.data?.totalCount ?? 0} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por VIN, propietario o marca" />} />
+      <DataTable data={query.data?.data ?? []} columns={columns} isLoading={query.isLoading} isError={query.isError} error={query.error} totalCount={query.data?.totalCount ?? 0} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por VIN, propietario o marca" />} />
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -7,7 +7,6 @@ import {
   CreditCard,
   FileText,
   History,
-  MessageSquare,
   Package,
   PackageCheck,
   PackageSearch,
@@ -22,12 +21,12 @@ import { MetricCard } from "../../../shared/components/layout/MetricCard";
 import { Card } from "../../../shared/components/ui/Card";
 import { Button } from "../../../shared/components/ui/Button";
 import { Badge } from "../../../shared/components/ui/Badge";
+import { ApiErrorAlert } from "../../../shared/components/feedback/ApiErrorAlert";
 import { formatCurrency } from "../../../shared/utils/formatters";
-import { mockOrderServices } from "../../../shared/mocks/operationsMocks";
-import { AdditionalRequest, ClientPayment, StockSubmission } from "../../../shared/types/domain";
+import { formatApiError } from "../../../shared/utils/apiErrors";
+import { AdditionalRequest, ClientPayment, OrderServiceItem, ServiceOrder, StockSubmission } from "../../../shared/types/domain";
 import {
   AdditionalRequestStatusBadge,
-  ClientApprovalCard,
   ClientApprovalActionCard,
   ClientOrderStatusCard,
   InventoryProductTable,
@@ -60,9 +59,14 @@ import {
   getStockSubmissionById,
   getStockSubmissions,
   getWarehouseProducts,
+  getAvailableWorkshopParts,
   getWorkshopChiefRequestById,
   getWorkshopChiefRequests,
   getWorkshopServices,
+  createWorkshopService,
+  updateWorkshopService,
+  approveRequestByWorkshopChief,
+  rejectRequestByWorkshopChief,
   approveRequestByClient,
   rejectRequestByClient,
 } from "../services/operationsService";
@@ -71,19 +75,91 @@ function useFallbackQuery<T>(queryKey: string[], queryFn: () => Promise<T>) {
   return useQuery({ queryKey, queryFn, staleTime: 60_000 });
 }
 
+function getOrderServices(order: ServiceOrder): OrderServiceItem[] {
+  const source = order as ServiceOrder & { services?: OrderServiceItem[]; orderServices?: OrderServiceItem[] };
+  return source.services ?? source.orderServices ?? [];
+}
+
+function requestBelongsToOrder(request: AdditionalRequest, order: ServiceOrder) {
+  return request.orderId === order.id || request.orderCode === order.code;
+}
+
+function isPendingClientApproval(order: ServiceOrder) {
+  return String(order.status).replace(/\s+/g, "").toLowerCase() === "pendingclientapproval";
+}
+
+function ClientOrderRequestActionsList({ requests, emptyMessage }: { requests: AdditionalRequest[]; emptyMessage: string }) {
+  const queryClient = useQueryClient();
+  const [hiddenRequestIds, setHiddenRequestIds] = useState<string[]>([]);
+  const [message, setMessage] = useState("");
+  const refreshClientViews = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["client-approvals"] }),
+      queryClient.invalidateQueries({ queryKey: ["client-orders"] }),
+      queryClient.invalidateQueries({ queryKey: ["client-order"] }),
+    ]);
+  };
+  const approveMutation = useMutation({
+    mutationFn: approveRequestByClient,
+    onSuccess: async (response) => {
+      if (response.status === "AddedToOrder" || response.status === "ApprovedByClient") {
+        setHiddenRequestIds((current) => [...current, response.id]);
+      }
+      setMessage("Solicitud aprobada. Se añadirá a la orden asociada.");
+      await refreshClientViews();
+    },
+  });
+  const rejectMutation = useMutation({
+    mutationFn: (requestId: string) => rejectRequestByClient(requestId),
+    onSuccess: async (response) => {
+      if (response.status === "RejectedByClient") {
+        setHiddenRequestIds((current) => [...current, response.id]);
+      }
+      setMessage("Solicitud rechazada. No se añadirá a la orden asociada.");
+      await refreshClientViews();
+    },
+  });
+  const visibleRequests = requests.filter((request) => !hiddenRequestIds.includes(request.id) && request.status !== "AddedToOrder" && request.status !== "RejectedByClient");
+
+  return (
+    <>
+      {message ? <Card className="mb-4 border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">{message}</Card> : null}
+      {visibleRequests.length === 0 ? <Card className="p-5 text-sm text-slate-600">{emptyMessage}</Card> : null}
+      <div className="grid gap-4">
+        {visibleRequests.map((request) => (
+          <ClientApprovalActionCard
+            key={request.id}
+            request={request}
+            isLoading={approveMutation.isPending || rejectMutation.isPending}
+            onApprove={(requestId) => approveMutation.mutate(requestId)}
+            onReject={(requestId) => rejectMutation.mutate(requestId)}
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
 export function WorkshopChiefDashboardPage() {
-  const { data = [] } = useFallbackQuery(["workshop-chief-requests"], getWorkshopChiefRequests);
+  const requestsQuery = useFallbackQuery(["workshop-chief-requests"], getWorkshopChiefRequests);
+  const servicesQuery = useFallbackQuery(["workshop-services"], getWorkshopServices);
+  const data = requestsQuery.data ?? [];
+  const services = servicesQuery.data ?? [];
   const pending = data.filter((item) => item.status === "PendingWorkshopChiefApproval").length;
   return (
     <>
       <PageHeader title="Dashboard Jefe de Taller" description="Solicitudes técnicas, órdenes activas y servicios configurados." />
+      <div className="space-y-3">
+        {requestsQuery.isError ? <ApiErrorAlert error={requestsQuery.error} action="No se pudieron cargar las solicitudes técnicas" /> : null}
+        {servicesQuery.isError ? <ApiErrorAlert error={servicesQuery.error} action="No se pudieron cargar los servicios del taller" /> : null}
+      </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <MetricCard label="Solicitudes pendientes de revisión" value={String(pending)} tone="amber" icon={AlertTriangle} />
-        <MetricCard label="Solicitudes aprobadas hoy" value="4" tone="green" icon={CheckCircle2} />
-        <MetricCard label="Solicitudes rechazadas hoy" value="1" tone="red" icon={XCircle} />
+        <MetricCard label="Solicitudes aprobadas" value={String(data.filter((item) => item.status === "PendingClientApproval" || item.status === "ApprovedByClient" || item.status === "AddedToOrder").length)} tone="green" icon={CheckCircle2} />
+        <MetricCard label="Solicitudes rechazadas" value={String(data.filter((item) => item.status === "RejectedByWorkshopChief" || item.status === "RejectedByClient").length)} tone="red" icon={XCircle} />
         <MetricCard label="Solicitudes pendientes por cliente" value={String(data.filter((item) => item.status === "PendingClientApproval").length)} tone="blue" icon={Send} />
-        <MetricCard label="Órdenes activas en taller" value="12" tone="indigo" icon={Wrench} />
-        <MetricCard label="Servicios activos" value="10" tone="green" icon={ClipboardList} />
+        <MetricCard label="Servicios configurados" value={String(services.length)} tone="indigo" icon={Wrench} />
+        <MetricCard label="Servicios activos" value={String(services.filter((item) => item.status === "Active").length)} tone="green" icon={ClipboardList} />
       </div>
       <RequestsTable requests={data} className="mt-5" />
     </>
@@ -116,8 +192,8 @@ export function InventoryManagerDashboardPage() {
       <PageHeader title="Dashboard Jefe de Almacén" description="Aprobación de stock e inventario oficial." />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <MetricCard label="Solicitudes pendientes" value={String(review.length)} tone="amber" icon={PackageSearch} />
-        <MetricCard label="Solicitudes aprobadas hoy" value="3" tone="green" icon={CheckCircle2} />
-        <MetricCard label="Solicitudes rechazadas hoy" value="1" tone="red" icon={XCircle} />
+        <MetricCard label="Solicitudes aprobadas" value={String(review.filter((item) => item.status === "ApprovedByInventoryManager").length)} tone="green" icon={CheckCircle2} />
+        <MetricCard label="Solicitudes rechazadas" value={String(review.filter((item) => item.status === "RejectedByInventoryManager").length)} tone="red" icon={XCircle} />
         <MetricCard label="Productos en inventario" value={String(products.length)} tone="blue" icon={Package} />
         <MetricCard label="Productos bajo stock" value={String(products.filter((item) => item.quantity <= item.minimumStock).length)} tone="amber" icon={AlertTriangle} />
       </div>
@@ -161,7 +237,7 @@ export function MechanicOrderDetailPage() {
       />
       <div className="grid gap-5 xl:grid-cols-[1fr_320px]">
         <div className="space-y-5">
-          <OrderServicesTimeline services={mockOrderServices} />
+          <OrderServicesTimeline services={getOrderServices(order)} />
           <Card className="p-5">
             <h2 className="font-bold text-slate-900">Historial de trabajo</h2>
             <p className="mt-2 text-sm text-slate-600">Diagnóstico inicial, cambio de aceite y revisión de frenos registrados.</p>
@@ -198,10 +274,12 @@ export function MechanicRequestsPage() {
 }
 
 export function WorkshopChiefRequestsPage() {
-  const { data = [] } = useFallbackQuery(["workshop-chief-requests"], getWorkshopChiefRequests);
+  const query = useFallbackQuery(["workshop-chief-requests"], getWorkshopChiefRequests);
+  const data = query.data ?? [];
   return (
     <>
       <PageHeader title="Solicitudes de mecánicos" description="Aprueba, deniega o envía solicitudes adicionales al cliente." />
+      {query.isError ? <ApiErrorAlert error={query.error} action="No se pudieron cargar las solicitudes de mecánicos" className="mb-4" /> : null}
       <RequestsTable requests={data} />
     </>
   );
@@ -209,10 +287,12 @@ export function WorkshopChiefRequestsPage() {
 
 export function WorkshopChiefRequestDetailPage() {
   const { id } = useParams();
-  const { data: request } = useFallbackQuery(["workshop-chief-request", id ?? "req-1"], () => getWorkshopChiefRequestById(id ?? "req-1"));
+  const query = useFallbackQuery(["workshop-chief-request", id ?? "req-1"], () => getWorkshopChiefRequestById(id ?? "req-1"));
+  const request = query.data;
   return (
     <>
       <PageHeader title="Detalle de solicitud técnica" description="Revisión de Jefe de Taller." />
+      {query.isError ? <ApiErrorAlert error={query.error} action="No se pudo cargar el detalle de la solicitud técnica" className="mb-4" /> : null}
       <Card className="p-5">
         {request ? <RequestDetail request={request} /> : null}
       </Card>
@@ -221,10 +301,12 @@ export function WorkshopChiefRequestDetailPage() {
 }
 
 export function WorkshopServicesPage() {
-  const { data = [] } = useFallbackQuery(["workshop-services"], getWorkshopServices);
+  const query = useFallbackQuery(["workshop-services"], getWorkshopServices);
+  const data = query.data ?? [];
   return (
     <>
       <PageHeader title="Servicios del taller" description="Servicios base creados por el Jefe de Taller con cálculo de repuestos y mano de obra." actions={<Link to="/workshop/services/new"><Button icon={<Plus className="h-4 w-4" />}>Crear servicio</Button></Link>} />
+      {query.isError ? <ApiErrorAlert error={query.error} action="No se pudieron cargar los servicios del taller" className="mb-4" /> : null}
       <div className="grid gap-4 lg:grid-cols-2">
         {data.map((service) => (
           <Card key={service.id} className="p-5">
@@ -251,23 +333,40 @@ export function WorkshopServicesPage() {
 
 export function WorkshopServiceFormPage() {
   const { id } = useParams();
-  const { data = [] } = useFallbackQuery(["workshop-services"], getWorkshopServices);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const query = useFallbackQuery(["workshop-services"], getWorkshopServices);
+  const partsQuery = useFallbackQuery(["workshop-service-parts"], getAvailableWorkshopParts);
+  const data = query.data ?? [];
   const service = data.find((item) => item.id === id);
+  const saveMutation = useMutation({
+    mutationFn: (payload: Parameters<typeof createWorkshopService>[0]) =>
+      id ? updateWorkshopService(id, payload) : createWorkshopService(payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["workshop-services"] });
+      navigate("/workshop/services");
+    },
+  });
   return (
     <>
       <PageHeader title={id ? "Editar servicio del taller" : "Nuevo servicio del taller"} description="Asocia repuestos, define porcentaje de mano de obra y calcula el precio final." />
-      <WorkshopServiceForm service={service} />
+      {query.isError ? <ApiErrorAlert error={query.error} action="No se pudo cargar la información del servicio del taller" className="mb-4" /> : null}
+      {partsQuery.isError ? <ApiErrorAlert error={partsQuery.error} action="No se pudieron cargar los repuestos disponibles del inventario" className="mb-4" /> : null}
+      {saveMutation.isError ? <ApiErrorAlert error={saveMutation.error} action="No se pudo guardar el servicio del taller" className="mb-4" /> : null}
+      <WorkshopServiceForm service={service} availableParts={partsQuery.data ?? []} isSaving={saveMutation.isPending} onSave={(payload) => saveMutation.mutate(payload)} />
     </>
   );
 }
 
 export function ClientOrdersPage() {
   const { data = [] } = useFallbackQuery(["client-orders"], operationsService.getClientOrders);
+  const approvedOrders = data.filter((order) => !isPendingClientApproval(order));
   return (
     <>
       <PageHeader title="Mis órdenes" description="Historial, órdenes activas, estados de pago y entregas." />
+      {approvedOrders.length === 0 ? <Card className="p-5 text-sm text-slate-600">No tienes órdenes aprobadas o en proceso.</Card> : null}
       <div className="grid gap-4 lg:grid-cols-2">
-        {data.map((order) => <Link key={order.id} to={`/client/orders/${order.id}`}><ClientOrderStatusCard order={order} /></Link>)}
+        {approvedOrders.map((order) => <Link key={order.id} to={`/client/orders/${order.id}`}><ClientOrderStatusCard order={order} /></Link>)}
       </div>
     </>
   );
@@ -275,15 +374,39 @@ export function ClientOrdersPage() {
 
 export function ClientOrderDetailPage() {
   const { id = "1" } = useParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: order } = useFallbackQuery(["client-order", id], () => operationsService.getClientOrderById(id));
   const { data: requests = [] } = useFallbackQuery(["client-approvals"], getClientPendingApprovals);
+  const approveOrderMutation = useMutation({
+    mutationFn: () => operationsService.approveClientOrder(id),
+    onSuccess: (updatedOrder) => {
+      queryClient.setQueryData(["client-order", id], updatedOrder);
+      queryClient.invalidateQueries({ queryKey: ["client-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["client-orders-pending-approval"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-client-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-client-invoices"] });
+      navigate("/client/orders");
+    },
+  });
+  const rejectOrderMutation = useMutation({
+    mutationFn: () => operationsService.rejectClientOrder(id),
+    onSuccess: (updatedOrder) => {
+      queryClient.setQueryData(["client-order", id], updatedOrder);
+      queryClient.invalidateQueries({ queryKey: ["client-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["client-orders-pending-approval"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-client-orders"] });
+      navigate("/client/approvals");
+    },
+  });
   if (!order) return null;
-  const payDisabled = order.canPay === false;
-  const canNavigateToPayment = order.canPay === true;
+  const orderRequests = order.additionalRequests?.length ? order.additionalRequests : requests.filter((request) => requestBelongsToOrder(request, order));
+  const canPayOrder = order.canPay === true || order.status === "WaitingForPayment";
+  const payDisabled = !canPayOrder;
   const payButton = (
     <Button
-      disabled={!order.canPay}
-      className={!order.canPay ? "cursor-not-allowed bg-gray-300 text-gray-500" : "bg-blue-600 text-white"}
+      disabled={payDisabled}
+      className={payDisabled ? "cursor-not-allowed bg-gray-300 text-gray-500" : "bg-blue-600 text-white"}
       icon={<CreditCard className="h-4 w-4" />}
     >
       Pagar
@@ -297,16 +420,46 @@ export function ClientOrderDetailPage() {
         actions={
           <>
             <Link to="/client/orders"><Button variant="secondary">Regresar a mis órdenes</Button></Link>
-            {canNavigateToPayment && !payDisabled ? <Link to={`/client/payments/new?orderId=${order.id}`}>{payButton}</Link> : payButton}
+            {canPayOrder ? <Link to={`/client/payments/new?orderId=${order.id}`}>{payButton}</Link> : payButton}
           </>
         }
       />
       <div className="grid gap-5 xl:grid-cols-[1fr_320px]">
         <div className="space-y-5">
           <OrderPaymentAlert order={order} />
-          <OrderServicesTimeline services={mockOrderServices} />
+          <OrderServicesTimeline services={getOrderServices(order)} />
+          {order.status === "PendingClientApproval" ? (
+            <Card className="flex flex-wrap items-center justify-between gap-4 p-5">
+              <div>
+                <h2 className="font-bold text-slate-900">Aprobación de la orden</h2>
+                <p className="mt-1 text-sm text-slate-600">Revisa los servicios registrados y aprueba la orden para que el taller continúe.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  icon={<XCircle className="h-4 w-4" />}
+                  isLoading={rejectOrderMutation.isPending}
+                  onClick={() => rejectOrderMutation.mutate()}
+                >
+                  Rechazar
+                </Button>
+                <Button
+                  icon={<CheckCircle2 className="h-4 w-4" />}
+                  isLoading={approveOrderMutation.isPending}
+                  onClick={() => approveOrderMutation.mutate()}
+                >
+                  Aprobar orden
+                </Button>
+              </div>
+            </Card>
+          ) : null}
           <Card className="p-5"><h2 className="font-bold text-slate-900">Mensajes del Jefe de Taller</h2><p className="mt-2 text-sm text-slate-600">Se recomienda aprobar el cambio de filtro para completar el mantenimiento.</p></Card>
-          <Card className="p-5"><h2 className="font-bold text-slate-900">Solicitudes adicionales</h2><div className="mt-3 space-y-3">{requests.map((request) => <ClientApprovalCard key={request.id} request={request} />)}</div></Card>
+          <Card className="p-5">
+            <h2 className="font-bold text-slate-900">Solicitudes de esta orden</h2>
+            <div className="mt-3">
+              <ClientOrderRequestActionsList requests={orderRequests} emptyMessage="Esta orden no tiene solicitudes pendientes por aprobar." />
+            </div>
+          </Card>
         </div>
         <Card className="h-fit p-5">
           <h2 className="font-bold text-slate-900">Estado general</h2>
@@ -322,52 +475,29 @@ export function ClientOrderDetailPage() {
 }
 
 export function ClientApprovalsPage() {
-  const { data = [] } = useFallbackQuery(["client-approvals"], getClientPendingApprovals);
-  const queryClient = useQueryClient();
-  const [hiddenRequestIds, setHiddenRequestIds] = useState<string[]>([]);
-  const [message, setMessage] = useState("");
-  const refreshClientViews = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["client-approvals"] }),
-      queryClient.invalidateQueries({ queryKey: ["client-orders"] }),
-    ]);
-  };
-  const approveMutation = useMutation({
-    mutationFn: approveRequestByClient,
-    onSuccess: async (response) => {
-      if (response.status === "AddedToOrder" || response.status === "ApprovedByClient") {
-        setHiddenRequestIds((current) => [...current, response.id]);
-      }
-      setMessage("Servicio aprobado. Se añadirá a tu orden activa.");
-      await refreshClientViews();
-    },
-  });
-  const rejectMutation = useMutation({
-    mutationFn: (requestId: string) => rejectRequestByClient(requestId),
-    onSuccess: async (response) => {
-      if (response.status === "RejectedByClient") {
-        setHiddenRequestIds((current) => [...current, response.id]);
-      }
-      setMessage("Rechazo confirmado. No se añadirá a tu orden.");
-      await refreshClientViews();
-    },
-  });
-  const visibleRequests = data.filter((request) => !hiddenRequestIds.includes(request.id) && request.status !== "AddedToOrder" && request.status !== "RejectedByClient");
+  const { data = [] } = useFallbackQuery(["client-orders-pending-approval"], operationsService.getClientOrders);
+  const ordersPendingApproval = data.filter(isPendingClientApproval);
   return (
     <>
-      <PageHeader title="Órdenes por aprobar" description="Servicios adicionales aprobados por el Jefe de Taller y pendientes por cliente." />
-      {message ? <Card className="mb-4 border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">{message}</Card> : null}
-      <div className="grid gap-4">
-        {visibleRequests.map((request) => (
-          <ClientApprovalActionCard
-            key={request.id}
-            request={request}
-            isLoading={approveMutation.isPending || rejectMutation.isPending}
-            onApprove={(requestId) => approveMutation.mutate(requestId)}
-            onReject={(requestId) => rejectMutation.mutate(requestId)}
-          />
+      <PageHeader title="Órdenes por aprobar" description="Órdenes completas que tienen aprobación pendiente del cliente." />
+      {ordersPendingApproval.length === 0 ? <Card className="p-5 text-sm text-slate-600">No tienes órdenes completas pendientes por aprobar.</Card> : null}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {ordersPendingApproval.map((order) => (
+          <Link key={order.id} to={`/client/orders/${order.id}`}>
+            <ClientOrderStatusCard order={order} />
+          </Link>
         ))}
       </div>
+    </>
+  );
+}
+
+export function ClientOrderRequestsPage() {
+  const { data = [] } = useFallbackQuery(["client-approvals"], getClientPendingApprovals);
+  return (
+    <>
+      <PageHeader title="Solicitudes de órdenes" description="Solicitudes adicionales asociadas a una orden específica." />
+      <ClientOrderRequestActionsList requests={data} emptyMessage="No tienes solicitudes de órdenes pendientes por aprobar." />
     </>
   );
 }
@@ -375,16 +505,20 @@ export function ClientApprovalsPage() {
 export function ClientPaymentNewPage() {
   const [params] = useSearchParams();
   const orderId = params.get("orderId") ?? "2";
+  const queryClient = useQueryClient();
   const [method, setMethod] = useState("Transferencia");
   const [cardLastFourDigits, setCardLastFourDigits] = useState("1234");
   const [cardHolderName, setCardHolderName] = useState("Carlos Rojas");
   const [cardBrand, setCardBrand] = useState("Visa");
   const [sent, setSent] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const { data: order } = useFallbackQuery(["client-order-payment", orderId], () => operationsService.getClientOrderById(orderId));
   const isCard = method === "Tarjeta";
   const paymentMethodId = method === "Tarjeta" ? 2 : method === "Efectivo" ? 3 : 1;
   const paymentPayload = {
-    invoiceId: order?.invoiceId ?? 12,
+    invoiceId: order?.invoiceId ?? 0,
+    serviceOrderId: Number(order?.id ?? orderId),
     paymentMethodId,
     amount: order?.estimatedTotal ?? 620000,
     cardLastFourDigits: isCard ? cardLastFourDigits : null,
@@ -392,13 +526,51 @@ export function ClientPaymentNewPage() {
     cardBrand: isCard ? cardBrand : null,
   };
   const submitPayment = async () => {
-    await operationsService.submitClientPayment(paymentPayload);
-    setSent(true);
+    setSent(false);
+    setPaymentError("");
+    setIsSubmittingPayment(true);
+    try {
+      await operationsService.submitClientPayment(paymentPayload);
+      const updatedOrder = order
+        ? {
+            ...order,
+            status: "PaymentUnderReview",
+            canPay: false,
+            paymentStatus: "PendingReceptionVerification" as const,
+            paymentMessage: "Pago enviado. Tu pago está pendiente de verificación por recepción.",
+          }
+        : undefined;
+
+      if (updatedOrder) {
+        queryClient.setQueryData<ServiceOrder[]>(["client-orders"], (current = []) =>
+          current.map((item) => (item.id === updatedOrder.id ? updatedOrder : item)),
+        );
+        queryClient.setQueryData(["client-order", updatedOrder.id], updatedOrder);
+        queryClient.setQueryData(["client-order-payment", updatedOrder.id], updatedOrder);
+        queryClient.setQueryData(["client-order", orderId], updatedOrder);
+        queryClient.setQueryData(["client-order-payment", orderId], updatedOrder);
+      }
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["client-orders"] }),
+        queryClient.invalidateQueries({ queryKey: ["client-order"] }),
+        queryClient.invalidateQueries({ queryKey: ["client-order-payment"] }),
+        queryClient.invalidateQueries({ queryKey: ["client-payments"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-client-orders"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-client-invoices"] }),
+      ]);
+      setSent(true);
+    } catch (error) {
+      setPaymentError(formatApiError(error, "No se pudo generar el pago"));
+    } finally {
+      setIsSubmittingPayment(false);
+    }
   };
   return (
     <>
       <PageHeader title="Registrar pago" description="El pago queda enviado para verificación por recepción." />
       {sent ? <PaymentSuccessMessage status="PendingReceptionVerification" /> : null}
+      {paymentError ? <Card className="mt-5 border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{paymentError}</Card> : null}
       <Card className="mt-5 p-5">
         <div className="grid gap-4 md:grid-cols-2">
           <Info label="Orden" value={order?.code ?? "OT-2026-0020"} />
@@ -413,7 +585,7 @@ export function ClientPaymentNewPage() {
             <label className="text-sm font-semibold text-slate-700">Franquicia<input className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2" value={cardBrand} onChange={(event) => setCardBrand(event.target.value)} /></label>
           </div>
         ) : null}
-        <div className="mt-5 flex justify-end"><Button onClick={submitPayment}>Enviar pago para verificación</Button></div>
+        <div className="mt-5 flex justify-end"><Button onClick={submitPayment} disabled={isSubmittingPayment}>{isSubmittingPayment ? "Enviando..." : "Enviar pago para verificación"}</Button></div>
       </Card>
     </>
   );
@@ -540,8 +712,35 @@ export function ReceptionDeliveriesPage() {
 
 function RequestsTable({ requests, className = "" }: { requests: AdditionalRequest[]; className?: string }) {
   const [selected, setSelected] = useState<AdditionalRequest | undefined>();
+  const queryClient = useQueryClient();
+  const refreshRequests = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["workshop-chief-requests"] });
+  };
+  const approveMutation = useMutation({
+    mutationFn: ({ requestId, comment }: { requestId: string; comment: string }) =>
+      approveRequestByWorkshopChief(requestId, comment.trim() || "Aprobado por jefe de taller."),
+    onSuccess: async () => {
+      setSelected(undefined);
+      await refreshRequests();
+    },
+  });
+  const rejectMutation = useMutation({
+    mutationFn: ({ requestId, comment }: { requestId: string; comment: string }) =>
+      rejectRequestByWorkshopChief(requestId, comment.trim() || "Rechazado por jefe de taller."),
+    onSuccess: async () => {
+      setSelected(undefined);
+      await refreshRequests();
+    },
+  });
+  const isWorking = approveMutation.isPending || rejectMutation.isPending;
+  const mutationError = approveMutation.error ?? rejectMutation.error;
+
+  const approve = (request: AdditionalRequest, comment = "") => approveMutation.mutate({ requestId: request.id, comment });
+  const reject = (request: AdditionalRequest, comment = "") => rejectMutation.mutate({ requestId: request.id, comment });
+
   return (
     <Card className={`overflow-x-auto ${className}`}>
+      {mutationError ? <ApiErrorAlert error={mutationError} action="No se pudo procesar la solicitud del mecánico" className="m-4" /> : null}
       <table className="w-full min-w-[960px] text-left text-sm">
         <thead className="bg-slate-50 text-xs uppercase text-slate-500">
           <tr>{["Fecha", "Mecánico", "Orden", "Cliente", "Vehículo", "Tipo de solicitud", "Estado", "Prioridad", "Acciones"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}</tr>
@@ -557,12 +756,25 @@ function RequestsTable({ requests, className = "" }: { requests: AdditionalReque
               <td className="px-4 py-3">{request.requestType === "Service" ? "Servicio" : "Repuesto"}</td>
               <td className="px-4 py-3"><AdditionalRequestStatusBadge status={request.status} /></td>
               <td className="px-4 py-3"><Badge tone={request.priority === "Alta" ? "red" : request.priority === "Media" ? "amber" : "slate"}>{request.priority}</Badge></td>
-              <td className="px-4 py-3"><div className="flex gap-2"><Button variant="secondary" onClick={() => setSelected(request)}>Ver detalle</Button><Button variant="secondary">Aprobar</Button><Button variant="ghost">Denegar</Button></div></td>
+              <td className="px-4 py-3">
+                <div className="flex gap-2">
+                  <Button variant="secondary" onClick={() => setSelected(request)}>Ver detalle</Button>
+                  <Button variant="secondary" disabled={request.status !== "PendingWorkshopChiefApproval"} isLoading={isWorking} onClick={() => approve(request)}>Aprobar</Button>
+                  <Button variant="ghost" disabled={request.status !== "PendingWorkshopChiefApproval"} isLoading={isWorking} onClick={() => reject(request)}>Denegar</Button>
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
-      <WorkshopChiefRequestDrawer open={Boolean(selected)} request={selected} onClose={() => setSelected(undefined)} />
+      <WorkshopChiefRequestDrawer
+        open={Boolean(selected)}
+        request={selected}
+        onClose={() => setSelected(undefined)}
+        onApprove={approve}
+        onReject={reject}
+        isWorking={isWorking}
+      />
     </Card>
   );
 }
@@ -639,7 +851,8 @@ function SimpleListPage({ title, description, items }: { title: string; descript
       <PageHeader title={title} description={description} />
       <Card className="p-5">
         <div className="divide-y divide-slate-100">
-          {items.map((item) => <p key={item} className="py-3 text-sm font-semibold text-slate-700">{item}</p>)}
+          {items.length === 0 ? <p className="py-3 text-sm font-semibold text-slate-600">No hay registros para mostrar.</p> : null}
+          {items.map((item, index) => <p key={`${item}-${index}`} className="py-3 text-sm font-semibold text-slate-700">{item}</p>)}
         </div>
       </Card>
     </>

@@ -1,10 +1,9 @@
 import { apiClient, getPaginated } from "../../../services/apiClient";
 import { QueryParams } from "../../../shared/types/common";
 import { Vehicle } from "../../../shared/types/domain";
-import { mockVehicles } from "../../../shared/utils/mockData";
 
 export const vehiclesService = {
-  list: (params: QueryParams) => getPaginated<Vehicle>("/api/vehicles", params, mockVehicles),
+  list: (params: QueryParams) => getPaginated<Vehicle>("/api/vehicles", params),
   getById: (id: string) => apiClient.get(`/api/vehicles/${id}`),
   create: (payload: { modelId: number; vehicleTypeId: number; vin: string; year: number; color: string; mileage: number; isActive: boolean }) =>
     apiClient.post("/api/vehicles", payload),

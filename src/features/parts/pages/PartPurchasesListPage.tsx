@@ -27,7 +27,7 @@ export function PartPurchasesListPage() {
   return (
     <>
       <PageHeader title="Compras de repuestos" description="Órdenes de compra, recepción y detalle de inventario." actions={<Button icon={<Plus className="h-4 w-4" />}><Link to="/part-purchases/new">Nueva compra</Link></Button>} />
-      <DataTable data={query.data?.data ?? []} columns={columns} isLoading={query.isLoading} isError={query.isError} totalCount={query.data?.totalCount ?? 0} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por número o proveedor" />} />
+      <DataTable data={query.data?.data ?? []} columns={columns} isLoading={query.isLoading} isError={query.isError} error={query.error} totalCount={query.data?.totalCount ?? 0} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por número o proveedor" />} />
     </>
   );
 }

@@ -1,6 +1,7 @@
 import axios, { AxiosError, AxiosResponse } from "axios";
 import { PaginatedResponse, QueryParams } from "../shared/types/common";
 import { tokenStorage } from "./tokenStorage";
+import { getStatusName } from "../shared/utils/apiErrors";
 
 const apiBaseUrl = import.meta.env.VITE_API_URL ?? "";
 
@@ -27,13 +28,23 @@ apiClient.interceptors.response.use(
       }
     }
 
+    const details = error.response?.data;
+    const message =
+      (typeof details === "string" ? details : undefined) ??
+      (details as { message?: string } | undefined)?.message ??
+      (details as { title?: string } | undefined)?.title ??
+      error.message ??
+      "No fue posible completar la solicitud.";
+    const status = error.response?.status;
+    const statusText = getStatusName(status, error.response?.statusText);
+
     return Promise.reject({
+      name: statusText,
       message:
-        (error.response?.data as { message?: string } | undefined)?.message ??
-        error.message ??
-        "No fue posible completar la solicitud.",
-      status: error.response?.status,
-      details: error.response?.data,
+        message,
+      status,
+      statusText,
+      details,
     });
   },
 );
@@ -53,16 +64,13 @@ export function toSearchParams(params: QueryParams = {}) {
 export async function getPaginated<T>(
   endpoint: string,
   params: QueryParams,
-  fallback: T[],
+  _fallback: T[] = [],
 ): Promise<PaginatedResponse<T>> {
-  try {
-    const response = await apiClient.get<T[]>(endpoint, { params: toSearchParams(params) });
-    return {
-      data: response.data,
-      totalCount: getTotalCount(response) || response.data.length,
-    };
-  } catch (error) {
-    if ((error as { status?: number }).status === 401) throw error;
-    return { data: fallback, totalCount: fallback.length };
-  }
+  const response = await apiClient.get<T[] | { items?: T[]; Items?: T[]; totalCount?: number; TotalCount?: number }>(endpoint, { params: toSearchParams(params) });
+  const data = Array.isArray(response.data) ? response.data : response.data.items ?? response.data.Items ?? [];
+  const totalCount = Array.isArray(response.data) ? undefined : response.data.totalCount ?? response.data.TotalCount;
+  return {
+    data,
+    totalCount: getTotalCount(response) || totalCount || data.length,
+  };
 }

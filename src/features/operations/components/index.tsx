@@ -1,5 +1,5 @@
 import { CheckCircle2, PackagePlus, Send, XCircle } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -194,13 +194,23 @@ export function WorkshopChiefRequestDrawer({
   open,
   request,
   onClose,
+  onApprove,
+  onReject,
+  isWorking,
 }: {
   open: boolean;
   request?: AdditionalRequest;
   onClose: () => void;
+  onApprove?: (request: AdditionalRequest, comment: string) => void;
+  onReject?: (request: AdditionalRequest, comment: string) => void;
+  isWorking?: boolean;
 }) {
   const [comment, setComment] = useState(request?.workshopChiefComment ?? "");
+  useEffect(() => {
+    setComment(request?.workshopChiefComment ?? "");
+  }, [request?.id, request?.workshopChiefComment]);
   if (!request) return null;
+  const canReview = request.status === "PendingWorkshopChiefApproval";
 
   return (
     <Drawer open={open} title="Detalle de solicitud técnica" onClose={onClose}>
@@ -230,8 +240,8 @@ export function WorkshopChiefRequestDrawer({
         </Card>
         <WorkshopChiefCommentBox value={comment} onChange={setComment} />
         <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>Denegar solicitud</Button>
-          <Button onClick={onClose}>Aprobar y enviar al cliente</Button>
+          <Button variant="secondary" disabled={!canReview} isLoading={isWorking} onClick={() => onReject?.(request, comment)}>Denegar solicitud</Button>
+          <Button disabled={!canReview} isLoading={isWorking} onClick={() => onApprove?.(request, comment)}>Aprobar y enviar al cliente</Button>
         </div>
       </div>
     </Drawer>
@@ -315,7 +325,7 @@ export function ClientOrderStatusCard({ order }: { order: ServiceOrder }) {
       </div>
       <div className="mt-4 grid gap-3 text-sm md:grid-cols-2">
         <Info label="Fecha de ingreso" value={order.entryDate} />
-        <Info label="Entrega estimada" value={order.estimatedDelivery} />
+        <Info label="Entrega estimada" value={order.estimatedDelivery || "Por asignar"} />
         <Info label="Estado de pago" value={paymentText} />
         <Info label="Total estimado" value={formatCurrency(order.estimatedTotal)} />
       </div>
@@ -379,6 +389,10 @@ function getOrderPaymentAlert(order: ServiceOrder) {
 }
 
 export function OrderServicesTimeline({ services }: { services: OrderServiceItem[] }) {
+  if (services.length === 0) {
+    return <Card className="p-5 text-sm text-slate-600">Esta orden no tiene servicios registrados.</Card>;
+  }
+
   return (
     <div className="space-y-3">
       {services.map((service, index) => (
@@ -392,7 +406,8 @@ export function OrderServicesTimeline({ services }: { services: OrderServiceItem
               <h3 className="font-bold text-slate-900">{service.name}</h3>
               <OrderServiceStatusBadge status={service.status} />
             </div>
-            <p className="mt-2 text-sm text-slate-500">Repuestos usados: {service.parts.join(", ") || "Sin repuestos"}</p>
+            <p className="mt-2 text-sm text-slate-500">Repuestos usados: {(service.parts ?? []).join(", ") || "Sin repuestos"}</p>
+            {service.workPerformed ? <p className="mt-2 text-sm font-medium text-slate-700">{service.workPerformed}</p> : null}
           </Card>
         </div>
       ))}
@@ -421,7 +436,7 @@ export function PaymentVerificationTable({ payments, onSelect }: { payments: Cli
           {payments.map((payment) => (
             <tr key={payment.id}>
               <td className="px-4 py-3">{payment.date}</td>
-              <td className="px-4 py-3">{payment.customer}</td>
+              <td className="px-4 py-3">{payment.clientNumber ? `#${payment.clientNumber} · ${payment.customer}` : payment.customer}</td>
               <td className="px-4 py-3">{payment.orderCode}</td>
               <td className="px-4 py-3">{payment.invoiceNumber}</td>
               <td className="px-4 py-3">{payment.method}</td>
@@ -570,17 +585,67 @@ export function InventoryProductTable({ products }: { products: WarehouseProduct
   );
 }
 
-export function ServicePartsSelector({ parts, onChange }: { parts: WorkshopServicePart[]; onChange: (parts: WorkshopServicePart[]) => void }) {
+export function ServicePartsSelector({
+  parts,
+  availableParts,
+  onChange,
+}: {
+  parts: WorkshopServicePart[];
+  availableParts: WarehouseProduct[];
+  onChange: (parts: WorkshopServicePart[]) => void;
+}) {
+  function toWorkshopPart(product: WarehouseProduct): WorkshopServicePart {
+    return {
+      partId: product.id,
+      name: product.name,
+      quantity: 1,
+      salePrice: product.salePrice,
+    };
+  }
+
+  function changePart(index: number, productId: string) {
+    const product = availableParts.find((item) => item.id === productId);
+    if (!product) return;
+    onChange(parts.map((item, itemIndex) => itemIndex === index ? toWorkshopPart(product) : item));
+  }
+
+  function changeQuantity(index: number, quantity: number) {
+    const part = parts[index];
+    const product = availableParts.find((item) => item.id === part.partId);
+    const maxQuantity = product?.quantity ?? Number.MAX_SAFE_INTEGER;
+    const nextQuantity = Math.max(1, Math.min(quantity || 1, maxQuantity));
+    onChange(parts.map((item, itemIndex) => itemIndex === index ? { ...item, quantity: nextQuantity } : item));
+  }
+
+  function addPart() {
+    const product = availableParts.find((item) => !parts.some((part) => part.partId === item.id)) ?? availableParts[0];
+    if (product) onChange([...parts, toWorkshopPart(product)]);
+  }
+
   return (
     <div className="space-y-3">
+      <div>
+        <p className="text-sm font-semibold text-slate-700">Repuestos del inventario</p>
+        <p className="mt-1 text-xs text-slate-500">Solo se pueden escoger repuestos disponibles en inventario.</p>
+      </div>
       {parts.map((part, index) => (
-        <div key={part.partId} className="grid gap-3 md:grid-cols-[1fr_120px_140px]">
-          <FormInput label="Repuesto" value={part.name} onChange={(event) => onChange(parts.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} />
-          <FormInput label="Cantidad" type="number" value={part.quantity} onChange={(event) => onChange(parts.map((item, itemIndex) => itemIndex === index ? { ...item, quantity: Number(event.target.value) } : item))} />
-          <FormInput label="Precio venta" type="number" value={part.salePrice} onChange={(event) => onChange(parts.map((item, itemIndex) => itemIndex === index ? { ...item, salePrice: Number(event.target.value) } : item))} />
+        <div key={`${part.partId}-${index}`} className="grid gap-3 md:grid-cols-[1fr_120px_140px_auto]">
+          <FormSelect
+            label="Repuesto"
+            value={part.partId}
+            onChange={(event) => changePart(index, event.target.value)}
+            options={availableParts.map((product) => ({
+              label: `${product.name} · Stock ${product.quantity}`,
+              value: product.id,
+            }))}
+            required
+          />
+          <FormInput label="Cantidad" type="number" min={1} max={availableParts.find((item) => item.id === part.partId)?.quantity ?? undefined} value={part.quantity} onChange={(event) => changeQuantity(index, Number(event.target.value))} />
+          <FormInput label="Precio venta" type="number" value={part.salePrice} readOnly />
+          <Button type="button" variant="ghost" className="self-end" onClick={() => onChange(parts.filter((_, itemIndex) => itemIndex !== index))}>Quitar</Button>
         </div>
       ))}
-      <Button type="button" variant="secondary" onClick={() => onChange([...parts, { partId: crypto.randomUUID(), name: "Nuevo repuesto", quantity: 1, salePrice: 0 }])}>Agregar repuesto</Button>
+      <Button type="button" variant="secondary" onClick={addPart} disabled={availableParts.length === 0}>Agregar repuesto</Button>
     </div>
   );
 }
@@ -602,29 +667,56 @@ export function WorkshopServicePriceCalculator({ parts, laborPercentage }: { par
   );
 }
 
-export function WorkshopServiceForm({ service }: { service?: WorkshopService }) {
-  const [parts, setParts] = useState<WorkshopServicePart[]>(service?.parts ?? [
-    { partId: "prd-1", name: "Aceite 20W50", salePrice: 78000, quantity: 1 },
-    { partId: "prd-2", name: "Filtro de aceite universal", salePrice: 32500, quantity: 1 },
-  ]);
+export function WorkshopServiceForm({
+  service,
+  availableParts = [],
+  isSaving,
+  onSave,
+}: {
+  service?: WorkshopService;
+  availableParts?: WarehouseProduct[];
+  isSaving?: boolean;
+  onSave?: (payload: Pick<WorkshopService, "name" | "description" | "category" | "laborPercentage" | "parts">) => void;
+}) {
+  const [name, setName] = useState(service?.name ?? "");
+  const [description, setDescription] = useState(service?.description ?? "");
+  const [category, setCategory] = useState(service?.category ?? "");
+  const [parts, setParts] = useState<WorkshopServicePart[]>(service?.parts ?? []);
   const [laborPercentage, setLaborPercentage] = useState(service?.laborPercentage ?? 30);
+
+  useEffect(() => {
+    if (!service) return;
+    setName(service.name);
+    setDescription(service.description);
+    setCategory(service.category);
+    setParts(service.parts);
+    setLaborPercentage(service.laborPercentage);
+  }, [service]);
+
   return (
     <Card className="p-5">
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSave?.({ name, description, category, laborPercentage, parts });
+        }}
+      >
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
         <div className="space-y-4">
-          <FormInput label="Nombre del servicio" defaultValue={service?.name ?? "Cambio de aceite"} />
-          <FormTextarea label="Descripción" defaultValue={service?.description ?? "Cambio de aceite y filtro con revisión visual."} />
-          <FormInput label="Categoría de servicio" defaultValue={service?.category ?? "Mantenimiento preventivo"} />
-          <ServicePartsSelector parts={parts} onChange={setParts} />
+          <FormInput label="Nombre del servicio" value={name} onChange={(event) => setName(event.target.value)} required />
+          <FormTextarea label="Descripción" value={description} onChange={(event) => setDescription(event.target.value)} required />
+          <FormInput label="Categoría de servicio" value={category} onChange={(event) => setCategory(event.target.value)} required />
+          <ServicePartsSelector parts={parts} availableParts={availableParts} onChange={setParts} />
           <FormInput label="Porcentaje de mano de obra" type="number" value={laborPercentage} onChange={(event) => setLaborPercentage(Number(event.target.value))} />
           <FormSelect label="Estado" options={[{ label: "Activo", value: "Active" }, { label: "Inactivo", value: "Inactive" }]} defaultValue={service?.status ?? "Active"} />
         </div>
         <WorkshopServicePriceCalculator parts={parts} laborPercentage={laborPercentage} />
       </div>
       <div className="mt-5 flex justify-end gap-2">
-        <Button variant="secondary">Cancelar</Button>
-        <Button>Guardar servicio</Button>
+        <Button type="button" variant="secondary" onClick={() => history.back()}>Cancelar</Button>
+        <Button type="submit" isLoading={isSaving} disabled={parts.length === 0}>Guardar servicio</Button>
       </div>
+      </form>
     </Card>
   );
 }

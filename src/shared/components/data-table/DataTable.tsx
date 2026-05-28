@@ -1,7 +1,7 @@
 import { flexRender, getCoreRowModel, useReactTable, ColumnDef } from "@tanstack/react-table";
 import { EmptyState } from "../feedback/EmptyState";
 import { LoadingState } from "../feedback/LoadingState";
-import { ErrorState } from "../feedback/ErrorState";
+import { ApiErrorAlert } from "../feedback/ApiErrorAlert";
 import { Card } from "../ui/Card";
 import { TablePagination } from "./TablePagination";
 
@@ -10,6 +10,7 @@ type DataTableProps<T> = {
   columns: ColumnDef<T>[];
   isLoading?: boolean;
   isError?: boolean;
+  error?: unknown;
   totalCount: number;
   page: number;
   pageSize: number;
@@ -17,11 +18,11 @@ type DataTableProps<T> = {
   toolbar?: React.ReactNode;
 };
 
-export function DataTable<T>({ data, columns, isLoading, isError, totalCount, page, pageSize, onPageChange, toolbar }: DataTableProps<T>) {
+export function DataTable<T>({ data, columns, isLoading, isError, error, totalCount, page, pageSize, onPageChange, toolbar }: DataTableProps<T>) {
   const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() });
 
   if (isLoading) return <LoadingState />;
-  if (isError) return <ErrorState />;
+  if (isError) return <ApiErrorAlert error={error} />;
 
   return (
     <Card className="overflow-hidden">

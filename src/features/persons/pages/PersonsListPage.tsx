@@ -34,6 +34,7 @@ export function PersonsListPage() {
         columns={columns}
         isLoading={query.isLoading}
         isError={query.isError}
+        error={query.error}
         totalCount={query.data?.totalCount ?? 0}
         page={table.page}
         pageSize={table.pageSize}

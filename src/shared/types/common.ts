@@ -27,6 +27,9 @@ export type SelectOption = {
 export type ApiError = {
   message: string;
   status?: number;
+  statusText?: string;
+  name?: string;
+  summary?: string;
   details?: unknown;
 };
 
