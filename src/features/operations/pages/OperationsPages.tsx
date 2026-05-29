@@ -1,7 +1,8 @@
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  ArrowLeft,
   CheckCircle2,
   ClipboardList,
   CreditCard,
@@ -11,20 +12,23 @@ import {
   PackageCheck,
   PackageSearch,
   Plus,
-  Send,
   Wrench,
   XCircle,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "../../../shared/components/layout/PageHeader";
 import { MetricCard } from "../../../shared/components/layout/MetricCard";
 import { Card } from "../../../shared/components/ui/Card";
 import { Button } from "../../../shared/components/ui/Button";
 import { Badge } from "../../../shared/components/ui/Badge";
 import { ApiErrorAlert } from "../../../shared/components/feedback/ApiErrorAlert";
-import { formatCurrency } from "../../../shared/utils/formatters";
+import { TablePagination } from "../../../shared/components/data-table/TablePagination";
+import { TableToolbar } from "../../../shared/components/data-table/TableToolbar";
+import { formatCurrency, formatDateTime } from "../../../shared/utils/formatters";
+import { getPaymentStatusLabel, getPaymentStatusTone } from "../../../shared/utils/statusLabels";
 import { formatApiError } from "../../../shared/utils/apiErrors";
 import { AdditionalRequest, ClientPayment, OrderServiceItem, ServiceOrder, StockSubmission } from "../../../shared/types/domain";
+import { serviceOrdersService } from "../../service-orders/services/serviceOrdersService";
 import {
   AdditionalRequestStatusBadge,
   ClientApprovalActionCard,
@@ -55,6 +59,7 @@ import {
   getMechanicOrders,
   getMechanicRequests,
   getClientPayments,
+  getClientPaymentById,
   getPaymentsPendingReceptionVerification,
   getStockSubmissionById,
   getStockSubmissions,
@@ -87,6 +92,8 @@ function requestBelongsToOrder(request: AdditionalRequest, order: ServiceOrder) 
 function isPendingClientApproval(order: ServiceOrder) {
   return String(order.status).replace(/\s+/g, "").toLowerCase() === "pendingclientapproval";
 }
+
+const workshopActiveOrderStatuses = new Set(["Created", "PendingAssignment", "Assigned", "InProgress", "WaitingForPayment", "PaymentUnderReview", "ReadyForDelivery"]);
 
 function ClientOrderRequestActionsList({ requests, emptyMessage }: { requests: AdditionalRequest[]; emptyMessage: string }) {
   const queryClient = useQueryClient();
@@ -143,25 +150,35 @@ function ClientOrderRequestActionsList({ requests, emptyMessage }: { requests: A
 export function WorkshopChiefDashboardPage() {
   const requestsQuery = useFallbackQuery(["workshop-chief-requests"], getWorkshopChiefRequests);
   const servicesQuery = useFallbackQuery(["workshop-services"], getWorkshopServices);
+  const ordersQuery = useFallbackQuery(["workshop-chief-active-orders"], () => serviceOrdersService.list({ pageNumber: 1, pageSize: 500 }));
   const data = requestsQuery.data ?? [];
   const services = servicesQuery.data ?? [];
+  const orders = ordersQuery.data?.data ?? [];
+  const activeOrders = orders.filter((order) => workshopActiveOrderStatuses.has(String(order.status)));
+  const pendingClientApprovalOrders = orders.filter(isPendingClientApproval);
   const pending = data.filter((item) => item.status === "PendingWorkshopChiefApproval").length;
+  const approvedByChief = data.filter((item) => ["PendingClientApproval", "ApprovedByClient", "AddedToOrder", "RejectedByClient"].includes(item.status));
+  const rejectedByChief = data.filter((item) => item.status === "RejectedByWorkshopChief");
   return (
     <>
       <PageHeader title="Dashboard Jefe de Taller" description="Solicitudes técnicas, órdenes activas y servicios configurados." />
       <div className="space-y-3">
         {requestsQuery.isError ? <ApiErrorAlert error={requestsQuery.error} action="No se pudieron cargar las solicitudes técnicas" /> : null}
         {servicesQuery.isError ? <ApiErrorAlert error={servicesQuery.error} action="No se pudieron cargar los servicios del taller" /> : null}
+        {ordersQuery.isError ? <ApiErrorAlert error={ordersQuery.error} action="No se pudieron cargar las órdenes activas" /> : null}
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <MetricCard label="Solicitudes pendientes de revisión" value={String(pending)} tone="amber" icon={AlertTriangle} />
-        <MetricCard label="Solicitudes aprobadas" value={String(data.filter((item) => item.status === "PendingClientApproval" || item.status === "ApprovedByClient" || item.status === "AddedToOrder").length)} tone="green" icon={CheckCircle2} />
-        <MetricCard label="Solicitudes rechazadas" value={String(data.filter((item) => item.status === "RejectedByWorkshopChief" || item.status === "RejectedByClient").length)} tone="red" icon={XCircle} />
-        <MetricCard label="Solicitudes pendientes por cliente" value={String(data.filter((item) => item.status === "PendingClientApproval").length)} tone="blue" icon={Send} />
-        <MetricCard label="Servicios configurados" value={String(services.length)} tone="indigo" icon={Wrench} />
+        <MetricCard label="Solicitudes aprobadas" value={String(approvedByChief.length)} tone="green" icon={CheckCircle2} />
+        <MetricCard label="Solicitudes rechazadas" value={String(rejectedByChief.length)} tone="red" icon={XCircle} />
+        <MetricCard label="Órdenes activas" value={String(activeOrders.length)} tone="blue" icon={ClipboardList} />
+        <MetricCard label="Órdenes pendientes de aprobación" value={String(pendingClientApprovalOrders.length)} tone="indigo" icon={FileText} />
         <MetricCard label="Servicios activos" value={String(services.filter((item) => item.status === "Active").length)} tone="green" icon={ClipboardList} />
       </div>
-      <RequestsTable requests={data} className="mt-5" />
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        <RequestsTable title="Solicitudes que aprobé" requests={approvedByChief} className="mt-0" allowReviewActions={false} compact detailPathPrefix="/workshop-chief/requests" />
+        <RequestsTable title="Solicitudes que denegué" requests={rejectedByChief} className="mt-0" allowReviewActions={false} compact detailPathPrefix="/workshop-chief/requests" />
+      </div>
     </>
   );
 }
@@ -268,7 +285,7 @@ export function MechanicRequestsPage() {
   return (
     <>
       <PageHeader title="Mis solicitudes" description="Solicitudes adicionales enviadas al Jefe de Taller y su respuesta." />
-      <RequestsTable requests={data} />
+      <RequestsTable requests={data} detailPathPrefix="/workshop-chief/requests" />
     </>
   );
 }
@@ -280,22 +297,103 @@ export function WorkshopChiefRequestsPage() {
     <>
       <PageHeader title="Solicitudes de mecánicos" description="Aprueba, deniega o envía solicitudes adicionales al cliente." />
       {query.isError ? <ApiErrorAlert error={query.error} action="No se pudieron cargar las solicitudes de mecánicos" className="mb-4" /> : null}
-      <RequestsTable requests={data} />
+      <RequestsTable requests={data} detailPathPrefix="/workshop-chief/requests" />
     </>
   );
 }
 
 export function WorkshopChiefRequestDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [comment, setComment] = useState("");
   const query = useFallbackQuery(["workshop-chief-request", id ?? "req-1"], () => getWorkshopChiefRequestById(id ?? "req-1"));
   const request = query.data;
+  useEffect(() => {
+    setComment(request?.workshopChiefComment ?? "");
+  }, [request?.id, request?.workshopChiefComment]);
+  const approveMutation = useMutation({
+    mutationFn: () => approveRequestByWorkshopChief(id ?? "", comment.trim() || "Aprobado por jefe de taller."),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["workshop-chief-requests"] });
+      await queryClient.invalidateQueries({ queryKey: ["workshop-chief-request", id ?? "req-1"] });
+      navigate("/workshop-chief/requests");
+    },
+  });
+  const rejectMutation = useMutation({
+    mutationFn: () => rejectRequestByWorkshopChief(id ?? "", comment.trim() || "Rechazado por jefe de taller."),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["workshop-chief-requests"] });
+      await queryClient.invalidateQueries({ queryKey: ["workshop-chief-request", id ?? "req-1"] });
+      navigate("/workshop-chief/requests");
+    },
+  });
+  const mutationError = approveMutation.error ?? rejectMutation.error;
+  const isWorking = approveMutation.isPending || rejectMutation.isPending;
+  const canReview = request?.status === "PendingWorkshopChiefApproval";
+
   return (
     <>
-      <PageHeader title="Detalle de solicitud técnica" description="Revisión de Jefe de Taller." />
+      <PageHeader
+        title={request?.orderCode ?? "Detalle de solicitud técnica"}
+        description={request ? `${request.vehicle} · ${request.customer}` : "Revisión de Jefe de Taller."}
+        actions={<Link to="/workshop-chief/requests"><Button variant="secondary" icon={<ArrowLeft className="h-4 w-4" />}>Regresar</Button></Link>}
+      />
       {query.isError ? <ApiErrorAlert error={query.error} action="No se pudo cargar el detalle de la solicitud técnica" className="mb-4" /> : null}
-      <Card className="p-5">
-        {request ? <RequestDetail request={request} /> : null}
-      </Card>
+      {mutationError ? <ApiErrorAlert error={mutationError} action="No se pudo procesar la solicitud del mecánico" className="mb-4" /> : null}
+      {!request && !query.isError ? <Card className="p-5 text-sm text-slate-600">Cargando solicitud...</Card> : null}
+      {request ? (
+        <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
+          <div className="space-y-4">
+            <Card className="p-5">
+              <h2 className="font-bold text-slate-900">Información de la orden</h2>
+              <div className="mt-4 grid gap-5 sm:grid-cols-2">
+                <Info label="Orden" value={request.orderCode} />
+                <Info label="Cliente" value={request.customer} />
+                <Info label="Vehículo" value={request.vehicle} />
+                <Info label="Mecánico asociado" value={request.mechanic} />
+              </div>
+            </Card>
+
+            <Card className="p-5">
+              <h2 className="font-bold text-slate-900">Solicitud del mecánico</h2>
+              <div className="mt-4 grid gap-5 sm:grid-cols-2">
+                <Info label="Tipo" value={request.requestType === "Service" ? "Servicio" : "Repuesto"} />
+                <Info label="Servicio sugerido" value={request.suggestedService} />
+                <Info label="Repuesto sugerido" value={request.suggestedPart ?? "No aplica"} />
+                <Info label="Precio estimado" value={formatCurrency(request.estimatedPrice)} />
+              </div>
+              <div className="mt-5 rounded-md border border-slate-200 p-4">
+                <p className="text-xs font-bold uppercase text-slate-400">Comentario técnico</p>
+                <p className="mt-2 text-sm font-semibold text-slate-800">{request.technicalJustification}</p>
+              </div>
+            </Card>
+
+            <Card className="p-5">
+              <label className="block">
+                <span className="text-sm font-semibold text-slate-700">Comentario del Jefe de Taller</span>
+                <textarea
+                  className="mt-1 min-h-24 w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  value={comment}
+                  onChange={(event) => setComment(event.target.value)}
+                />
+              </label>
+              <div className="mt-4 flex flex-wrap justify-end gap-2">
+                <Button variant="secondary" disabled={!canReview} isLoading={isWorking} onClick={() => rejectMutation.mutate()}>Denegar solicitud</Button>
+                <Button disabled={!canReview} isLoading={isWorking} onClick={() => approveMutation.mutate()}>Aprobar y enviar al cliente</Button>
+              </div>
+            </Card>
+          </div>
+
+          <Card className="p-5">
+            <p className="text-xs font-bold uppercase text-slate-400">Estado</p>
+            <div className="mt-2"><AdditionalRequestStatusBadge status={request.status} /></div>
+            <p className="mt-5 text-xs font-bold uppercase text-slate-400">Total estimado</p>
+            <p className="mt-2 text-2xl font-bold text-slate-950">{formatCurrency(request.estimatedPrice)}</p>
+            <p className="mt-3 text-sm text-slate-600">Esta solicitud está asociada a la orden {request.orderCode}.</p>
+          </Card>
+        </div>
+      ) : null}
     </>
   );
 }
@@ -374,6 +472,7 @@ export function ClientOrdersPage() {
 
 export function ClientOrderDetailPage() {
   const { id = "1" } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: order } = useFallbackQuery(["client-order", id], () => operationsService.getClientOrderById(id));
@@ -400,6 +499,7 @@ export function ClientOrderDetailPage() {
     },
   });
   if (!order) return null;
+  const cameFromApprovals = location.pathname.startsWith("/client/approvals");
   const orderRequests = order.additionalRequests?.length ? order.additionalRequests : requests.filter((request) => requestBelongsToOrder(request, order));
   const canPayOrder = order.canPay === true || order.status === "WaitingForPayment";
   const payDisabled = !canPayOrder;
@@ -419,7 +519,9 @@ export function ClientOrderDetailPage() {
         description={`${order.vehicle} · ${order.customer}`}
         actions={
           <>
-            <Link to="/client/orders"><Button variant="secondary">Regresar a mis órdenes</Button></Link>
+            <Link to={cameFromApprovals ? "/client/approvals" : "/client/orders"}>
+              <Button variant="secondary">{cameFromApprovals ? "Regresar a órdenes por aprobar" : "Regresar a mis órdenes"}</Button>
+            </Link>
             {canPayOrder ? <Link to={`/client/payments/new?orderId=${order.id}`}>{payButton}</Link> : payButton}
           </>
         }
@@ -483,7 +585,7 @@ export function ClientApprovalsPage() {
       {ordersPendingApproval.length === 0 ? <Card className="p-5 text-sm text-slate-600">No tienes órdenes completas pendientes por aprobar.</Card> : null}
       <div className="grid gap-4 lg:grid-cols-2">
         {ordersPendingApproval.map((order) => (
-          <Link key={order.id} to={`/client/orders/${order.id}`}>
+          <Link key={order.id} to={`/client/approvals/${order.id}`}>
             <ClientOrderStatusCard order={order} />
           </Link>
         ))}
@@ -593,10 +695,106 @@ export function ClientPaymentNewPage() {
 
 export function ClientPaymentsPage() {
   const { data = [] } = useFallbackQuery(["client-payments"], getClientPayments);
+  const navigate = useNavigate();
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
+  const filteredPayments = data.filter((payment) => {
+    const term = search.trim().toLowerCase();
+    if (!term) return true;
+    return [
+      payment.customer,
+      payment.clientNumber,
+      payment.orderCode,
+      payment.invoiceNumber,
+      payment.method,
+      payment.reference,
+      getPaymentStatusLabel(payment.status),
+      payment.date,
+    ].filter(Boolean).some((value) => String(value).toLowerCase().includes(term));
+  });
+  const totalPages = Math.max(1, Math.ceil(filteredPayments.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pagedPayments = filteredPayments.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   return (
     <>
       <PageHeader title="Pagos" description="Historial de pagos registrados y estado de verificación por recepción." />
-      <PaymentVerificationTable payments={data} onSelect={() => undefined} />
+      <PaymentVerificationTable
+        payments={pagedPayments}
+        onSelect={(payment) => navigate(`/client/payments/${payment.id}`)}
+        toolbar={
+          <TableToolbar
+            search={search}
+            onSearchChange={(value) => {
+              setSearch(value);
+              setPage(1);
+            }}
+            placeholder="Buscar por cliente, orden, factura, referencia o estado"
+            showFiltersButton={false}
+          />
+        }
+        footer={<TablePagination page={currentPage} pageSize={pageSize} totalCount={filteredPayments.length} onPageChange={setPage} />}
+      />
+    </>
+  );
+}
+
+function PaymentDetailItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs font-bold uppercase text-slate-400">{label}</p>
+      <p className="mt-1 font-semibold text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+export function ClientPaymentDetailPage() {
+  const { id } = useParams();
+  const query = useQuery({
+    queryKey: ["client-payment", id],
+    queryFn: () => getClientPaymentById(id ?? ""),
+    enabled: Boolean(id),
+  });
+
+  if (query.isLoading) return <Card className="p-5 text-sm text-slate-600">Cargando detalle del pago...</Card>;
+  if (query.isError) return <ApiErrorAlert error={query.error} action="No se pudo cargar el detalle del pago" />;
+
+  const payment = query.data;
+  if (!payment) return <Card className="p-5 text-sm text-slate-600">No se encontró el pago.</Card>;
+
+  return (
+    <>
+      <PageHeader
+        title={`Pago ${payment.reference}`}
+        description={`${payment.orderCode} · ${payment.customer}`}
+        actions={<Link to="/client/payments"><Button variant="secondary" icon={<ArrowLeft className="h-4 w-4" />}>Regresar</Button></Link>}
+      />
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+        <Card className="p-5">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <PaymentDetailItem label="Referencia" value={payment.reference} />
+            <PaymentDetailItem label="Cliente" value={payment.clientNumber ? `${payment.customer} · Cliente #${payment.clientNumber}` : payment.customer} />
+            <PaymentDetailItem label="Orden" value={payment.orderCode} />
+            <PaymentDetailItem label="Factura" value={payment.invoiceNumber} />
+            <PaymentDetailItem label="Método" value={payment.method} />
+            <PaymentDetailItem label="Fecha" value={formatDateTime(payment.date)} />
+            <PaymentDetailItem label="Valor" value={formatCurrency(payment.amount)} />
+            <div>
+              <p className="text-xs font-bold uppercase text-slate-400">Estado</p>
+              <div className="mt-1">
+                <Badge tone={getPaymentStatusTone(payment.status)}>{getPaymentStatusLabel(payment.status)}</Badge>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <p className="text-xs font-bold uppercase text-slate-400">Resumen</p>
+          <p className="mt-2 text-2xl font-bold text-slate-950">{formatCurrency(payment.amount)}</p>
+          <p className="mt-2 text-sm text-slate-600">Pago asociado a la factura {payment.invoiceNumber}.</p>
+        </Card>
+      </div>
     </>
   );
 }
@@ -710,8 +908,25 @@ export function ReceptionDeliveriesPage() {
   return <SimpleListPage title="Entregas" description="Vehículos listos para entrega tras pago verificado." items={data.filter((payment) => payment.status === "Approved").map((payment) => `${payment.orderCode} · ${payment.customer} · Entrega ${payment.deliveryDate ?? "por confirmar"}`)} />;
 }
 
-function RequestsTable({ requests, className = "" }: { requests: AdditionalRequest[]; className?: string }) {
+function RequestsTable({
+  requests,
+  className = "",
+  title,
+  allowReviewActions = true,
+  compact = false,
+  detailPathPrefix,
+}: {
+  requests: AdditionalRequest[];
+  className?: string;
+  title?: string;
+  allowReviewActions?: boolean;
+  compact?: boolean;
+  detailPathPrefix?: string;
+}) {
   const [selected, setSelected] = useState<AdditionalRequest | undefined>();
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
   const queryClient = useQueryClient();
   const refreshRequests = async () => {
     await queryClient.invalidateQueries({ queryKey: ["workshop-chief-requests"] });
@@ -737,36 +952,87 @@ function RequestsTable({ requests, className = "" }: { requests: AdditionalReque
 
   const approve = (request: AdditionalRequest, comment = "") => approveMutation.mutate({ requestId: request.id, comment });
   const reject = (request: AdditionalRequest, comment = "") => rejectMutation.mutate({ requestId: request.id, comment });
+  const filteredRequests = requests.filter((request) => {
+    const term = search.trim().toLowerCase();
+    if (!term) return true;
+    return [
+      request.createdAt,
+      request.mechanic,
+      request.orderCode,
+      request.customer,
+      request.vehicle,
+      request.requestType === "Service" ? "Servicio" : "Repuesto",
+      request.status,
+      request.suggestedService,
+      request.suggestedPart,
+    ].filter(Boolean).some((value) => String(value).toLowerCase().includes(term));
+  });
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pagedRequests = filteredRequests.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
-    <Card className={`overflow-x-auto ${className}`}>
+    <Card className={`overflow-hidden ${className}`}>
+      {title ? <div className="border-b border-slate-200 px-4 py-3"><h2 className="font-bold text-slate-900">{title}</h2></div> : null}
       {mutationError ? <ApiErrorAlert error={mutationError} action="No se pudo procesar la solicitud del mecánico" className="m-4" /> : null}
-      <table className="w-full min-w-[960px] text-left text-sm">
+      <TableToolbar
+        search={search}
+        onSearchChange={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
+        placeholder={compact ? "Buscar por mecánico, orden o solicitud" : "Buscar por mecánico, orden, cliente, vehículo, estado o solicitud"}
+        showFiltersButton={false}
+      />
+      <table className="w-full table-fixed text-left text-sm">
         <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-          <tr>{["Fecha", "Mecánico", "Orden", "Cliente", "Vehículo", "Tipo de solicitud", "Estado", "Prioridad", "Acciones"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}</tr>
+          {compact ? (
+            <tr>{["Mecánico", "Orden", "Solicitud", "Acciones"].map((header) => <th key={header} className="break-words px-3 py-3">{header}</th>)}</tr>
+          ) : (
+            <tr>{["Fecha", "Mecánico", "Orden", "Cliente", "Vehículo", "Tipo", "Estado", "Acciones"].map((header) => <th key={header} className="break-words px-3 py-3">{header}</th>)}</tr>
+          )}
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {requests.map((request) => (
+          {pagedRequests.map((request) => (
             <tr key={request.id}>
-              <td className="px-4 py-3">{request.createdAt}</td>
-              <td className="px-4 py-3">{request.mechanic}</td>
-              <td className="px-4 py-3">{request.orderCode}</td>
-              <td className="px-4 py-3">{request.customer}</td>
-              <td className="px-4 py-3">{request.vehicle}</td>
-              <td className="px-4 py-3">{request.requestType === "Service" ? "Servicio" : "Repuesto"}</td>
-              <td className="px-4 py-3"><AdditionalRequestStatusBadge status={request.status} /></td>
-              <td className="px-4 py-3"><Badge tone={request.priority === "Alta" ? "red" : request.priority === "Media" ? "amber" : "slate"}>{request.priority}</Badge></td>
-              <td className="px-4 py-3">
-                <div className="flex gap-2">
-                  <Button variant="secondary" onClick={() => setSelected(request)}>Ver detalle</Button>
-                  <Button variant="secondary" disabled={request.status !== "PendingWorkshopChiefApproval"} isLoading={isWorking} onClick={() => approve(request)}>Aprobar</Button>
-                  <Button variant="ghost" disabled={request.status !== "PendingWorkshopChiefApproval"} isLoading={isWorking} onClick={() => reject(request)}>Denegar</Button>
+              {!compact ? <td className="break-words px-3 py-3">{request.createdAt}</td> : null}
+              <td className="break-words px-3 py-3">{request.mechanic}</td>
+              <td className="break-words px-3 py-3">{request.orderCode}</td>
+              {compact ? (
+                <td className="break-words px-3 py-3">
+                  <p className="font-semibold text-slate-900">{request.suggestedService}</p>
+                  <p className="mt-1 text-xs text-slate-500">{request.suggestedPart ?? (request.requestType === "Service" ? "Servicio" : "Repuesto")}</p>
+                </td>
+              ) : (
+                <>
+                  <td className="break-words px-3 py-3">{request.customer}</td>
+                  <td className="break-words px-3 py-3">{request.vehicle}</td>
+                  <td className="break-words px-3 py-3">{request.requestType === "Service" ? "Servicio" : "Repuesto"}</td>
+                  <td className="px-3 py-3"><AdditionalRequestStatusBadge status={request.status} /></td>
+                </>
+              )}
+              <td className="px-3 py-3">
+                <div className={compact ? "flex gap-2" : "flex flex-col gap-2"}>
+                  {detailPathPrefix ? (
+                    <Link className="w-full" to={`${detailPathPrefix}/${request.id}`}>
+                      <Button variant="secondary" className="min-h-9 w-full px-2 text-xs">Ver</Button>
+                    </Link>
+                  ) : (
+                    <Button variant="secondary" className="min-h-9 w-full px-2 text-xs" onClick={() => setSelected(request)}>Ver</Button>
+                  )}
+                  {allowReviewActions ? (
+                    <>
+                      <Button variant="secondary" className="min-h-9 w-full px-2 text-xs" disabled={request.status !== "PendingWorkshopChiefApproval"} isLoading={isWorking} onClick={() => approve(request)}>Aprobar</Button>
+                      <Button variant="secondary" className="min-h-9 w-full px-2 text-xs" disabled={request.status !== "PendingWorkshopChiefApproval"} isLoading={isWorking} onClick={() => reject(request)}>Denegar</Button>
+                    </>
+                  ) : null}
                 </div>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      <TablePagination page={currentPage} pageSize={pageSize} totalCount={filteredRequests.length} onPageChange={setPage} />
       <WorkshopChiefRequestDrawer
         open={Boolean(selected)}
         request={selected}

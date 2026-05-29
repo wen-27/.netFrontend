@@ -20,11 +20,12 @@ const statusOptions = [
   { label: "Pendiente de asignación", value: "2" },
   { label: "Asignada", value: "3" },
   { label: "En progreso", value: "4" },
-  { label: "Pendiente de aprobación del cliente", value: "5" },
   { label: "Esperando pago", value: "6" },
   { label: "Pago en revisión", value: "7" },
   { label: "Lista para entrega", value: "9" },
 ];
+
+const activeStatuses = new Set(["Created", "PendingAssignment", "Assigned", "InProgress", "WaitingForPayment", "PaymentUnderReview", "ReadyForDelivery"]);
 
 const columns: ColumnDef<ServiceOrder>[] = [
   { header: "Código orden", accessorKey: "code" },
@@ -35,10 +36,10 @@ const columns: ColumnDef<ServiceOrder>[] = [
   { header: "Fecha ingreso", cell: ({ row }) => formatDate(row.original.entryDate) },
   { header: "Entrega estimada", cell: ({ row }) => formatDate(row.original.estimatedDelivery) },
   { header: "Total estimado", cell: ({ row }) => formatCurrency(row.original.estimatedTotal) },
-  { header: "Acciones", cell: ({ row }) => <Button variant="ghost" className="h-8 w-8 px-0" icon={<Eye className="h-4 w-4" />} onClick={() => location.assign(`/service-orders/${row.original.id}`)} aria-label="Ver" /> },
+  { header: "Acciones", meta: { className: "w-24 whitespace-nowrap text-right" }, cell: ({ row }) => <Link to={`/service-orders/${row.original.id}`}><Button variant="secondary" className="min-h-9 w-20 whitespace-nowrap px-2 text-xs" icon={<Eye className="h-4 w-4" />} aria-label="Ver detalle">Ver</Button></Link> },
 ];
 
-export function ServiceOrdersListPage() {
+function ServiceOrdersTablePage({ pendingClientApprovalOnly = false, createdOnly = false }: { pendingClientApprovalOnly?: boolean; createdOnly?: boolean }) {
   const table = useTableQueryState();
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({ statusId: "", customer: "", vehicle: "", orderCode: "", mechanic: "" });
@@ -46,26 +47,35 @@ export function ServiceOrdersListPage() {
   const queryParams = {
     ...table.params,
     search,
-    statusId: filters.statusId ? Number(filters.statusId) : undefined,
+    statusId: createdOnly ? 1 : pendingClientApprovalOnly ? 5 : filters.statusId ? Number(filters.statusId) : undefined,
     vin: filters.vehicle || undefined,
   };
-  const query = useQuery({ queryKey: ["service-orders", table.page, table.pageSize, search, filters.statusId, filters.vehicle], queryFn: () => serviceOrdersService.list(queryParams) });
+  const query = useQuery({ queryKey: ["service-orders", table.page, table.pageSize, search, filters.statusId, filters.vehicle, pendingClientApprovalOnly, createdOnly], queryFn: () => serviceOrdersService.list(queryParams) });
   const visibleOrders = useMemo(() => {
-    const activeStatuses = new Set(["Created", "PendingAssignment", "Assigned", "InProgress", "PendingClientApproval", "WaitingForPayment", "PaymentUnderReview", "ReadyForDelivery"]);
     return (query.data?.data ?? []).filter((order) => {
-      if (!activeStatuses.has(String(order.status))) return false;
+      if (createdOnly) {
+        if (String(order.status) !== "Created") return false;
+      } else if (pendingClientApprovalOnly) {
+        if (String(order.status) !== "PendingClientApproval") return false;
+      } else if (!activeStatuses.has(String(order.status))) {
+        return false;
+      }
       const matchesCustomer = !filters.customer || order.customer.toLowerCase().includes(filters.customer.toLowerCase());
       const matchesVehicle = !filters.vehicle || order.vehicle.toLowerCase().includes(filters.vehicle.toLowerCase());
       const matchesOrderCode = !filters.orderCode || order.code.toLowerCase().includes(filters.orderCode.toLowerCase());
       const matchesMechanic = !filters.mechanic || order.mechanic.toLowerCase().includes(filters.mechanic.toLowerCase());
       return matchesCustomer && matchesVehicle && matchesOrderCode && matchesMechanic;
     });
-  }, [filters, query.data?.data]);
+  }, [createdOnly, filters, pendingClientApprovalOnly, query.data?.data]);
 
   return (
     <>
-      <PageHeader title="Órdenes de servicio" description="Órdenes activas, en progreso o pendientes del taller." actions={<Button icon={<Plus className="h-4 w-4" />}><Link to="/service-orders/new">Crear orden</Link></Button>} />
-      {showFilters ? (
+      <PageHeader
+        title={createdOnly ? "Órdenes del jefe" : pendingClientApprovalOnly ? "Órdenes pendientes de aprobación" : "Órdenes activas"}
+        description={createdOnly ? "Órdenes vacías creadas por el Jefe de Taller para diagnóstico." : pendingClientApprovalOnly ? "Órdenes completas que esperan aprobación del cliente." : "Órdenes que el taller tiene activas para seguimiento y ejecución."}
+        actions={pendingClientApprovalOnly || createdOnly ? undefined : <Button icon={<Plus className="h-4 w-4" />}><Link to="/service-orders/new">Crear orden</Link></Button>}
+      />
+      {showFilters && !pendingClientApprovalOnly ? (
         <Card className="mb-4 grid gap-3 p-4 md:grid-cols-5">
           <label className="text-sm font-semibold text-slate-700">Estado<select className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm" value={filters.statusId} onChange={(event) => setFilters((current) => ({ ...current, statusId: event.target.value }))}>{statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
           <label className="text-sm font-semibold text-slate-700">Cliente<input className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm" value={filters.customer} onChange={(event) => setFilters((current) => ({ ...current, customer: event.target.value }))} /></label>
@@ -77,4 +87,16 @@ export function ServiceOrdersListPage() {
       <DataTable data={visibleOrders} columns={columns} isLoading={query.isLoading} isError={query.isError} error={query.error} totalCount={query.data?.totalCount ?? visibleOrders.length} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por cliente, vehículo, estado, orden o mecánico" onFiltersClick={() => setShowFilters((current) => !current)} />} />
     </>
   );
+}
+
+export function ServiceOrdersListPage() {
+  return <ServiceOrdersTablePage />;
+}
+
+export function ServiceOrdersPendingApprovalPage() {
+  return <ServiceOrdersTablePage pendingClientApprovalOnly />;
+}
+
+export function ServiceOrdersCreatedPage() {
+  return <ServiceOrdersTablePage createdOnly />;
 }

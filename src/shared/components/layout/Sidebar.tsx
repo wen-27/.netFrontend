@@ -35,6 +35,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             <NavLink
               key={`${item.path}-${item.label}`}
               to={item.path}
+              end={item.path === "/service-orders"}
               onClick={onClose}
               className={({ isActive }) =>
                 cn(

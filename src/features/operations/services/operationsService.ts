@@ -11,6 +11,7 @@ import {
   WorkshopService,
   WorkshopServicePart,
 } from "../../../shared/types/domain";
+import { getSessionCustomerName, isPlaceholderCustomerName } from "../../../shared/utils/sessionCustomer";
 
 async function apiData<T>(request: Promise<{ data: T }>): Promise<T> {
   const response = await request;
@@ -188,25 +189,25 @@ function toWorkshopServicePayload(payload: Pick<WorkshopService, "name" | "descr
 }
 
 function requestOrderCode(item: Record<string, unknown>) {
-  if (item.orderCode) return String(item.orderCode);
-  const orderId = item.orderId ?? item.serviceOrderId;
-  const createdAt = typeof item.createdAt === "string" ? item.createdAt : undefined;
+  if (item.orderCode ?? item.OrderCode) return String(item.orderCode ?? item.OrderCode);
+  const orderId = item.orderId ?? item.serviceOrderId ?? item.ServiceOrderId;
+  const createdAt = typeof (item.createdAt ?? item.CreatedAt) === "string" ? String(item.createdAt ?? item.CreatedAt) : undefined;
   return orderId ? toOrderCode(String(orderId), createdAt) : "Orden sin número";
 }
 
 function normalizeAdditionalRequest(request: unknown, index: number): AdditionalRequest {
   const item = request as Partial<AdditionalRequest> & Record<string, unknown>;
   return {
-    id: String(item.id ?? item.additionalServiceRequestId ?? `request-${index}`),
-    createdAt: String(item.createdAt ?? ""),
-    orderId: String(item.orderId ?? item.serviceOrderId ?? ""),
+    id: String(item.id ?? item.Id ?? item.additionalServiceRequestId ?? item.AdditionalServiceRequestId ?? `request-${index}`),
+    createdAt: String(item.createdAt ?? item.CreatedAt ?? ""),
+    orderId: String(item.orderId ?? item.serviceOrderId ?? item.ServiceOrderId ?? ""),
     orderCode: requestOrderCode(item),
-    customer: String(item.customer ?? "Cliente"),
-    vehicle: String(item.vehicle ?? "Vehículo"),
-    mechanic: String(item.mechanic ?? "Mecánico"),
+    customer: String(item.customer ?? item.Customer ?? "Cliente"),
+    vehicle: String(item.vehicle ?? item.Vehicle ?? "Vehículo"),
+    mechanic: String(item.mechanic ?? item.Mechanic ?? "Mecánico"),
     requestType: item.requestType === "Part" ? "Part" : "Service",
     suggestedService: String(item.suggestedService ?? item.serviceName ?? item.workshopServiceName ?? "Solicitud adicional"),
-    suggestedPart: item.suggestedPart ? String(item.suggestedPart) : undefined,
+    suggestedPart: item.suggestedPart || item.partName || item.PartName ? String(item.suggestedPart ?? item.partName ?? item.PartName) : undefined,
     quantity: item.quantity === undefined || item.quantity === null ? undefined : Number(item.quantity),
     problemDescription: String(item.problemDescription ?? item.technicalComment ?? "Sin descripción."),
     technicalJustification: String(item.technicalJustification ?? item.technicalComment ?? "Sin comentario técnico."),
@@ -325,14 +326,15 @@ function normalizeClientOrder(order: ApiClientOrder): ServiceOrder {
   };
 }
 
-function normalizePayment(payment: ApiPayment): ClientPayment {
+function normalizePayment(payment: ApiPayment, fallbackCustomer = getSessionCustomerName()): ClientPayment {
   const orderId = String(payment.orderId ?? payment.serviceOrderId ?? "");
+  const customer = String(payment.customer ?? "");
   return {
     id: String(payment.id),
     orderId,
     orderCode: String(payment.orderCode ?? (orderId ? toOrderCode(orderId) : "Orden sin número")),
     invoiceNumber: String(payment.invoiceNumber ?? (payment.invoiceId ? `FV-${String(payment.invoiceId).padStart(4, "0")}` : "Factura sin número")),
-    customer: String(payment.customer ?? "Cliente"),
+    customer: isPlaceholderCustomerName(customer) ? fallbackCustomer : customer,
     clientNumber: payment.clientPersonId === undefined || payment.clientPersonId === null ? undefined : String(payment.clientPersonId),
     method: String(payment.paymentMethod ?? payment.method ?? "Método no registrado"),
     amount: Number(payment.amount ?? 0),
@@ -349,8 +351,33 @@ async function getMappedClientOrders() {
 }
 
 async function getMappedClientPayments() {
-  const response = await apiClient.get<ApiPayment[]>("/api/client/payments");
-  return response.data.map(normalizePayment);
+  const [paymentsResponse, orders] = await Promise.all([
+    apiClient.get<ApiPayment[]>("/api/client/payments"),
+    getMappedClientOrders().catch(() => []),
+  ]);
+  const ordersById = new Map(orders.map((order) => [order.id, order]));
+  const ordersByCode = new Map(orders.map((order) => [order.code, order]));
+
+  return paymentsResponse.data.map((payment) => {
+    const orderId = String(payment.orderId ?? payment.serviceOrderId ?? "");
+    const orderCode = String(payment.orderCode ?? "");
+    const order = ordersById.get(orderId) ?? ordersByCode.get(orderCode);
+    return normalizePayment(payment, isPlaceholderCustomerName(order?.customer) ? getSessionCustomerName() : order?.customer);
+  });
+}
+
+async function getMappedClientPaymentById(paymentId: string) {
+  const payments = await getMappedClientPayments();
+  const payment = payments.find((item) => item.id === paymentId);
+  if (!payment) {
+    throw {
+      name: "Not Found",
+      message: "No se encontró el pago solicitado.",
+      status: 404,
+      statusText: "Not Found",
+    };
+  }
+  return payment;
 }
 
 async function getMappedClientMessages() {
@@ -392,16 +419,16 @@ export const operationsService = {
   createAdditionalRequest: (payload: Partial<AdditionalRequest>) =>
     apiData(apiClient.post<AdditionalRequest>(`/api/mechanic/orders/${payload.orderId}/additional-requests`, payload)),
   getMechanicRequests: () =>
-    apiData(apiClient.get<AdditionalRequest[]>("/api/mechanic/requests")),
+    apiData(apiClient.get<unknown[]>("/api/mechanic/requests")).then((requests) => requests.map(normalizeAdditionalRequest)),
   getMechanicOrders: () => apiData(apiClient.get<ServiceOrder[]>("/api/mechanic/orders")),
   getMechanicOrderById: (orderId: string) =>
     apiData(apiClient.get<ServiceOrder>(`/api/mechanic/orders/${orderId}`)),
   registerMechanicWork: (orderId: string, payload: { workPerformed: string; observations?: string }) =>
     apiData(apiClient.post(`/api/mechanic/orders/${orderId}/work`, payload)),
   getWorkshopChiefRequests: () =>
-    apiData(apiClient.get<AdditionalRequest[]>("/api/workshop-chief/requests")),
+    apiData(apiClient.get<unknown[]>("/api/workshop-chief/requests")).then((requests) => requests.map(normalizeAdditionalRequest)),
   getWorkshopChiefRequestById: (requestId: string) =>
-    apiData(apiClient.get<AdditionalRequest>(`/api/workshop-chief/requests/${requestId}`)),
+    apiData(apiClient.get<unknown>(`/api/workshop-chief/requests/${requestId}`)).then((request) => normalizeAdditionalRequest(request, 0)),
   approveRequestByWorkshopChief: (requestId: string, comment: string) =>
     apiData(apiClient.post<AdditionalRequest>(`/api/workshop-chief/requests/${requestId}/approve`, { comment })),
   rejectRequestByWorkshopChief: (requestId: string, comment: string) =>
@@ -420,6 +447,7 @@ export const operationsService = {
     apiData(apiClient.post<ServiceOrder>(`/api/client/orders/${orderId}/reject`, { comment: "Rechazada por el cliente." })).then((order) => normalizeClientOrder(order as ApiClientOrder)),
   getClientMessages: getMappedClientMessages,
   getClientPayments: getMappedClientPayments,
+  getClientPaymentById: getMappedClientPaymentById,
 
   createWarehouseProduct: (payload: Omit<WarehouseProduct, "id" | "salePrice">) =>
     apiData(apiClient.post<WarehouseProduct>("/api/warehouse/products", payload)),
@@ -468,7 +496,7 @@ export const operationsService = {
     return response.data;
   },
   getPaymentsPendingReceptionVerification: () =>
-    apiData(apiClient.get<ApiPayment[]>("/api/reception/payments/pending-verification")).then((payments) => payments.map(normalizePayment)),
+    apiData(apiClient.get<ApiPayment[]>("/api/reception/payments/pending-verification")).then((payments) => payments.map((payment) => normalizePayment(payment))),
   getReceptionPaymentById: (paymentId: string) =>
     apiData(apiClient.get<ApiPayment>(`/api/reception/payments/${paymentId}`)).then(normalizePayment),
   approvePaymentByReception: (paymentId: string, deliveryDate?: string) =>
@@ -494,6 +522,7 @@ export const {
   rejectRequestByClient,
   getClientMessages,
   getClientPayments,
+  getClientPaymentById,
   createWarehouseProduct,
   updateWarehouseProduct,
   getWarehouseProducts,

@@ -20,7 +20,7 @@ import { VehiclesListPage } from "../features/vehicles/pages/VehiclesListPage";
 import { VehicleCreatePage } from "../features/vehicles/pages/VehicleCreatePage";
 import { VehicleDetailPage } from "../features/vehicles/pages/VehicleDetailPage";
 import { VehicleEditPage } from "../features/vehicles/pages/VehicleEditPage";
-import { ServiceOrdersListPage } from "../features/service-orders/pages/ServiceOrdersListPage";
+import { ServiceOrdersCreatedPage, ServiceOrdersListPage, ServiceOrdersPendingApprovalPage } from "../features/service-orders/pages/ServiceOrdersListPage";
 import { ServiceOrderCreatePage } from "../features/service-orders/pages/ServiceOrderCreatePage";
 import { ServiceOrderDetailPage } from "../features/service-orders/pages/ServiceOrderDetailPage";
 import { PartsListPage } from "../features/parts/pages/PartsListPage";
@@ -44,6 +44,7 @@ import {
   ClientOrderDetailPage,
   ClientOrdersPage,
   ClientOrderRequestsPage,
+  ClientPaymentDetailPage,
   ClientPaymentNewPage,
   ClientPaymentsPage,
   InventoryHistoryPage,
@@ -123,11 +124,13 @@ export function AppRouter() {
           <Route element={<RoleGuard allowedRoles={moduleRoles.serviceOrders} />}>
             <Route path="/service-orders" element={<ServiceOrdersListPage />} />
             <Route path="/service-orders/new" element={<ServiceOrderCreatePage />} />
+            <Route path="/service-orders/pending-approval" element={<ServiceOrdersPendingApprovalPage />} />
             <Route path="/service-orders/:id" element={<ServiceOrderDetailPage />} />
           </Route>
 
           <Route element={<RoleGuard allowedRoles={moduleRoles.mechanic} />}>
             <Route path="/mechanic/orders" element={<MechanicOrdersPage />} />
+            <Route path="/mechanic/chief-orders" element={<ServiceOrdersCreatedPage />} />
             <Route path="/mechanic/orders/:id" element={<MechanicOrderDetailPage />} />
             <Route path="/mechanic/requests" element={<MechanicRequestsPage />} />
           </Route>
@@ -147,8 +150,10 @@ export function AppRouter() {
             <Route path="/client/orders" element={<ClientOrdersPage />} />
             <Route path="/client/orders/:id" element={<ClientOrderDetailPage />} />
             <Route path="/client/approvals" element={<ClientApprovalsPage />} />
+            <Route path="/client/approvals/:id" element={<ClientOrderDetailPage />} />
             <Route path="/client/order-requests" element={<ClientOrderRequestsPage />} />
             <Route path="/client/payments" element={<ClientPaymentsPage />} />
+            <Route path="/client/payments/:id" element={<ClientPaymentDetailPage />} />
             <Route path="/client/payments/new" element={<ClientPaymentNewPage />} />
             <Route path="/client/messages" element={<ClientMessagesPage />} />
             <Route path="/client/history" element={<ClientHistoryPage />} />

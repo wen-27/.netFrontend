@@ -27,7 +27,7 @@ export function InvoicesListPage({ payments = false }: { payments?: boolean }) {
     { header: "Impuestos", cell: ({ row }) => formatCurrency(row.original.taxes) },
     { header: "Total", cell: ({ row }) => formatCurrency(row.original.total) },
     { header: "Estado de pago", cell: ({ row }) => <Badge tone={getPaymentStatusTone(row.original.paymentStatus)}>{getPaymentStatusLabel(row.original.paymentStatus)}</Badge> },
-    { header: "Acciones", cell: ({ row }) => <Button variant="ghost" className="h-8 w-8 px-0" icon={<Eye className="h-4 w-4" />} onClick={() => navigate(`/invoices/${row.original.id}`)} aria-label="Ver detalle" /> },
+    { header: "Acciones", cell: ({ row }) => <Button variant="secondary" className="min-h-9 w-full px-2 text-xs leading-tight" icon={<Eye className="h-4 w-4 shrink-0" />} onClick={() => navigate(`/invoices/${row.original.id}`)}>Ver detalle</Button> },
   ];
   const invoiceQueryFn = () => {
     if (payments) return invoicesService.listPayments(table.params);
@@ -42,7 +42,7 @@ export function InvoicesListPage({ payments = false }: { payments?: boolean }) {
   return (
     <>
       <PageHeader title={payments ? "Pagos" : "Facturación"} description="Facturas, estados de pago, detalle de servicios, repuestos e impuestos." />
-      <DataTable data={query.data?.data ?? []} columns={columns} isLoading={query.isLoading} isError={query.isError} error={query.error} totalCount={query.data?.totalCount ?? 0} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por cliente, fecha, estado o número" />} />
+      <DataTable data={query.data?.data ?? []} columns={columns} isLoading={query.isLoading} isError={query.isError} error={query.error} totalCount={query.data?.totalCount ?? 0} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por cliente, fecha, estado o número" showFiltersButton={false} />} />
     </>
   );
 }

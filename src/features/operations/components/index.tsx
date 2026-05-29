@@ -11,7 +11,7 @@ import { Modal } from "../../../shared/components/ui/Modal";
 import { FormInput } from "../../../shared/components/forms/FormInput";
 import { FormSelect } from "../../../shared/components/forms/FormSelect";
 import { FormTextarea } from "../../../shared/components/forms/FormTextarea";
-import { formatCurrency } from "../../../shared/utils/formatters";
+import { formatCurrency, formatDateTime } from "../../../shared/utils/formatters";
 import { getPaymentStatusLabel, getPaymentStatusTone } from "../../../shared/utils/statusLabels";
 import {
   AdditionalRequest,
@@ -425,29 +425,67 @@ export function PaymentSuccessMessage({ status, deliveryDate }: { status: Client
   return <Card className="border-blue-200 bg-blue-50 p-4 text-blue-800"><strong>Pago enviado</strong><p>Tu pago está pendiente de verificación por recepción.</p></Card>;
 }
 
-export function PaymentVerificationTable({ payments, onSelect }: { payments: ClientPayment[]; onSelect: (payment: ClientPayment) => void }) {
+export function PaymentVerificationTable({
+  payments,
+  onSelect,
+  toolbar,
+  footer,
+}: {
+  payments: ClientPayment[];
+  onSelect: (payment: ClientPayment) => void;
+  toolbar?: React.ReactNode;
+  footer?: React.ReactNode;
+}) {
+  const statusToneClasses = {
+    blue: "bg-blue-50 text-blue-700 ring-blue-200",
+    green: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    amber: "bg-amber-50 text-amber-700 ring-amber-200",
+    red: "bg-red-50 text-red-700 ring-red-200",
+    indigo: "bg-indigo-50 text-indigo-700 ring-indigo-200",
+    slate: "bg-slate-100 text-slate-700 ring-slate-200",
+  } as const;
+
   return (
-    <Card className="overflow-x-auto">
-      <table className="w-full min-w-[900px] text-left text-sm">
+    <Card className="overflow-hidden">
+      {toolbar}
+      <table className="w-full table-fixed text-left text-sm">
         <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-          <tr>{["Fecha", "Cliente", "Orden", "Factura", "Método de pago", "Valor", "Referencia", "Estado", "Acciones"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}</tr>
+          <tr>
+            <th className="px-3 py-3">Fecha</th>
+            <th className="px-3 py-3">Cliente</th>
+            <th className="px-3 py-3">Orden</th>
+            <th className="px-3 py-3">Factura</th>
+            <th className="px-3 py-3">Método</th>
+            <th className="px-3 py-3">Valor</th>
+            <th className="px-3 py-3">Referencia</th>
+            <th className="px-3 py-3">Estado</th>
+            <th className="px-3 py-3">Acciones</th>
+          </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
           {payments.map((payment) => (
-            <tr key={payment.id}>
-              <td className="px-4 py-3">{payment.date}</td>
-              <td className="px-4 py-3">{payment.clientNumber ? `#${payment.clientNumber} · ${payment.customer}` : payment.customer}</td>
-              <td className="px-4 py-3">{payment.orderCode}</td>
-              <td className="px-4 py-3">{payment.invoiceNumber}</td>
-              <td className="px-4 py-3">{payment.method}</td>
-              <td className="px-4 py-3">{formatCurrency(payment.amount)}</td>
-              <td className="px-4 py-3">{payment.reference}</td>
-              <td className="px-4 py-3"><Badge tone={getPaymentStatusTone(payment.status)}>{getPaymentStatusLabel(payment.status)}</Badge></td>
-              <td className="px-4 py-3"><Button variant="secondary" onClick={() => onSelect(payment)}>Ver detalle</Button></td>
+            <tr key={payment.id} className="align-middle">
+              <td className="break-words px-3 py-4 text-slate-700">{formatDateTime(payment.date)}</td>
+              <td className="break-words px-3 py-4">
+                <p className="font-semibold text-slate-900">{payment.customer}</p>
+                {payment.clientNumber ? <p className="text-xs text-slate-500">Cliente #{payment.clientNumber}</p> : null}
+              </td>
+              <td className="break-words px-3 py-4 font-semibold text-slate-900">{payment.orderCode}</td>
+              <td className="break-words px-3 py-4">{payment.invoiceNumber}</td>
+              <td className="break-words px-3 py-4">{payment.method}</td>
+              <td className="break-words px-3 py-4 font-semibold">{formatCurrency(payment.amount)}</td>
+              <td className="break-words px-3 py-4 text-slate-700">{payment.reference}</td>
+              <td className="px-3 py-4">
+                <span className={`inline-flex rounded-md px-2.5 py-1 text-xs font-semibold ring-1 ${statusToneClasses[getPaymentStatusTone(payment.status)]}`}>
+                  {getPaymentStatusLabel(payment.status)}
+                </span>
+              </td>
+              <td className="px-3 py-4"><Button variant="secondary" className="min-h-9 px-3" onClick={() => onSelect(payment)}>Ver</Button></td>
             </tr>
           ))}
         </tbody>
       </table>
+      {footer}
     </Card>
   );
 }
@@ -465,11 +503,11 @@ export function DeliveryDateConfirmationForm({ onConfirm }: { onConfirm: (date: 
   );
 }
 
-export function PaymentVerificationDrawer({ open, payment, onClose }: { open: boolean; payment?: ClientPayment; onClose: () => void }) {
+export function PaymentVerificationDrawer({ open, payment, onClose, readOnly = false }: { open: boolean; payment?: ClientPayment; onClose: () => void; readOnly?: boolean }) {
   const [message, setMessage] = useState("");
   if (!payment) return null;
   return (
-    <Drawer open={open} title="Verificación de pago" onClose={onClose}>
+    <Drawer open={open} title={readOnly ? "Detalle de pago" : "Verificación de pago"} onClose={onClose}>
       <div className="space-y-5">
         <SummaryGrid rows={[
           ["Cliente", payment.customer],
@@ -478,13 +516,19 @@ export function PaymentVerificationDrawer({ open, payment, onClose }: { open: bo
           ["Método", payment.method],
           ["Valor", formatCurrency(payment.amount)],
           ["Referencia", payment.reference],
+          ["Fecha", formatDateTime(payment.date)],
+          ["Estado", getPaymentStatusLabel(payment.status)],
         ]} />
         {message ? <PaymentSuccessMessage status={message === "approved" ? "Approved" : "Rejected"} deliveryDate="2026-05-29" /> : null}
-        <DeliveryDateConfirmationForm onConfirm={() => setMessage("approved")} />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setMessage("rejected")}>Rechazar pago</Button>
-          <Button onClick={() => setMessage("approved")}>Aprobar pago</Button>
-        </div>
+        {!readOnly ? (
+          <>
+            <DeliveryDateConfirmationForm onConfirm={() => setMessage("approved")} />
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setMessage("rejected")}>Rechazar pago</Button>
+              <Button onClick={() => setMessage("approved")}>Aprobar pago</Button>
+            </div>
+          </>
+        ) : null}
       </div>
     </Drawer>
   );
