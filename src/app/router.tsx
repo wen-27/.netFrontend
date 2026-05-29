@@ -54,6 +54,7 @@ import {
   InventoryReviewPage,
   MechanicOrderDetailPage,
   MechanicOrdersPage,
+  MechanicDiagnosticsPage,
   MechanicRequestsPage,
   ReceptionDeliveriesPage,
   ReceptionPaymentsVerificationPage,
@@ -65,9 +66,14 @@ import {
   WorkshopChiefDashboardPage,
   WorkshopChiefRequestDetailPage,
   WorkshopChiefRequestsPage,
+  WorkshopChiefDiagnosticDetailPage,
+  WorkshopChiefDiagnosticsHistoryPage,
+  WorkshopChiefDiagnosticsPendingPage,
   WorkshopServiceFormPage,
   WorkshopServicesPage,
 } from "../features/operations/pages/OperationsPages";
+import { MechanicDiagnosticOrderCreatePage } from "../features/operations/pages/MechanicDiagnosticOrderCreatePage";
+import { MechanicWorkBoardPage } from "../features/operations/pages/MechanicWorkBoardPage";
 
 function HomeRedirect() {
   const role = useAuth((state) => state.role);
@@ -102,9 +108,11 @@ export function AppRouter() {
           </Route>
           <Route element={<RoleGuard allowedRoles={["Admin", "WarehouseChief"]} />}>
             <Route path="/dashboard/warehouse-chief" element={<WarehouseChiefDashboardPage />} />
+            <Route path="/stock-manager" element={<WarehouseChiefDashboardPage />} />
           </Route>
           <Route element={<RoleGuard allowedRoles={["Admin", "InventoryManager"]} />}>
             <Route path="/dashboard/inventory-manager" element={<InventoryManagerDashboardPage />} />
+            <Route path="/inventory-manager" element={<InventoryManagerDashboardPage />} />
           </Route>
 
           <Route element={<RoleGuard allowedRoles={moduleRoles.persons} />}>
@@ -130,14 +138,23 @@ export function AppRouter() {
 
           <Route element={<RoleGuard allowedRoles={moduleRoles.mechanic} />}>
             <Route path="/mechanic/orders" element={<MechanicOrdersPage />} />
+            <Route path="/mechanic/orders/new-diagnostic" element={<MechanicDiagnosticOrderCreatePage />} />
             <Route path="/mechanic/chief-orders" element={<ServiceOrdersCreatedPage />} />
+            <Route path="/mechanic/chief-orders/:id" element={<ServiceOrderDetailPage />} />
             <Route path="/mechanic/orders/:id" element={<MechanicOrderDetailPage />} />
+            <Route path="/mechanic/diagnostics" element={<MechanicDiagnosticsPage />} />
             <Route path="/mechanic/requests" element={<MechanicRequestsPage />} />
+            <Route path="/mechanic/electricity" element={<MechanicWorkBoardPage specialty="electricity" />} />
+            <Route path="/mechanic/maintenance" element={<MechanicWorkBoardPage specialty="maintenance" />} />
+            <Route path="/mechanic/brakes" element={<MechanicWorkBoardPage specialty="brakes" />} />
           </Route>
 
           <Route element={<RoleGuard allowedRoles={moduleRoles.workshopChief} />}>
             <Route path="/workshop-chief/requests" element={<WorkshopChiefRequestsPage />} />
             <Route path="/workshop-chief/requests/:id" element={<WorkshopChiefRequestDetailPage />} />
+            <Route path="/workshop-chief/diagnostics" element={<WorkshopChiefDiagnosticsPendingPage />} />
+            <Route path="/workshop-chief/diagnostics/history" element={<WorkshopChiefDiagnosticsHistoryPage />} />
+            <Route path="/workshop-chief/diagnostics/:id" element={<WorkshopChiefDiagnosticDetailPage />} />
           </Route>
 
           <Route element={<RoleGuard allowedRoles={moduleRoles.workshopServices} />}>

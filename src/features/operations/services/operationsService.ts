@@ -3,9 +3,12 @@ import {
   AdditionalRequest,
   ClientPayment,
   ClientPaymentRequest,
+  MechanicDiagnostic,
   PaymentStatus,
   OrderServiceItem,
   ServiceOrder,
+  StockDashboard,
+  StockMovement,
   StockSubmission,
   WarehouseProduct,
   WorkshopService,
@@ -84,6 +87,79 @@ type ApiPart = {
   UnitPrice?: number | string;
   isActive?: boolean;
   IsActive?: boolean;
+  category?: string;
+  Category?: string;
+  brand?: string | null;
+  Brand?: string | null;
+  stockStatus?: string;
+  StockStatus?: string;
+};
+
+type ApiStockMovement = Partial<StockMovement> & {
+  id?: number | string;
+  Id?: number | string;
+  partId?: number | string;
+  PartId?: number | string;
+  partCode?: string;
+  PartCode?: string;
+  partName?: string;
+  PartName?: string;
+  quantityChange?: number | string;
+  QuantityChange?: number | string;
+  resultingStock?: number | string;
+  ResultingStock?: number | string;
+  unitPrice?: number | string;
+  UnitPrice?: number | string;
+  action?: string;
+  Action?: string;
+  comment?: string | null;
+  Comment?: string | null;
+  createdAt?: string;
+  CreatedAt?: string;
+};
+
+type ApiStockSubmission = Partial<StockSubmission> & {
+  id?: number | string;
+  Id?: number | string;
+  productName?: string;
+  ProductName?: string;
+  referenceCode?: string;
+  ReferenceCode?: string;
+  supplierId?: number | string;
+  SupplierId?: number | string;
+  supplier?: string;
+  Supplier?: string;
+  supplierPrice?: number | string;
+  SupplierPrice?: number | string;
+  profitPercentage?: number | string;
+  ProfitPercentage?: number | string;
+  salePrice?: number | string;
+  SalePrice?: number | string;
+  quantity?: number | string;
+  Quantity?: number | string;
+  minimumStock?: number | string;
+  MinimumStock?: number | string;
+  categoryName?: string | null;
+  CategoryName?: string | null;
+  brandName?: string | null;
+  BrandName?: string | null;
+  description?: string | null;
+  Description?: string | null;
+  warehouseComment?: string | null;
+  WarehouseComment?: string | null;
+  inventoryManagerComment?: string | null;
+  InventoryManagerComment?: string | null;
+  status?: string;
+  Status?: string;
+  createdAt?: string;
+  CreatedAt?: string;
+};
+
+type ApiCatalogItem = {
+  id?: number | string;
+  Id?: number | string;
+  name?: string;
+  Name?: string;
 };
 
 type ApiWorkshopServicePart = {
@@ -114,10 +190,40 @@ type ApiWorkshopService = Partial<WorkshopService> & {
   Parts?: ApiWorkshopServicePart[];
 };
 
+type ApiMechanicDiagnostic = Partial<MechanicDiagnostic> & {
+  id?: number | string;
+  Id?: number | string;
+  serviceOrderId?: number | string;
+  ServiceOrderId?: number | string;
+  orderCode?: string;
+  OrderCode?: string;
+  customer?: string;
+  Customer?: string;
+  vehicle?: string;
+  Vehicle?: string;
+  mechanicPersonId?: number | string;
+  MechanicPersonId?: number | string;
+  mechanic?: string;
+  Mechanic?: string;
+  status?: string;
+  Status?: string;
+  findings?: string;
+  Findings?: string;
+  recommendedWork?: string;
+  RecommendedWork?: string;
+  workshopChiefComment?: string | null;
+  WorkshopChiefComment?: string | null;
+  submittedAt?: string;
+  SubmittedAt?: string;
+  reviewedAt?: string | null;
+  ReviewedAt?: string | null;
+};
+
 function normalizeOrderService(service: unknown, index: number) {
   const item = service as Record<string, unknown>;
   return {
     id: String(item.id ?? item.orderServiceId ?? `service-${index}`),
+    serviceOrderId: item.serviceOrderId ? String(item.serviceOrderId) : undefined,
     name: String(item.name ?? item.serviceName ?? item.description ?? "Servicio"),
     status: String(item.status ?? "Pending") as OrderServiceItem["status"],
     parts: Array.isArray(item.parts) ? item.parts.map(String) : [],
@@ -146,10 +252,59 @@ function normalizeInventoryPart(part: ApiPart): WarehouseProduct {
     profitPercentage: 0,
     salePrice: unitPrice,
     quantity: stock,
-    category: "Repuesto",
-    brand: "",
+    category: String(part.category ?? part.Category ?? "Repuesto"),
+    brand: String(part.brand ?? part.Brand ?? ""),
     description,
     minimumStock: Number(part.minimumStock ?? part.MinimumStock ?? 0),
+  };
+}
+
+function normalizeStockMovement(movement: ApiStockMovement): StockMovement {
+  return {
+    id: String(movement.id ?? movement.Id ?? ""),
+    partId: String(movement.partId ?? movement.PartId ?? ""),
+    partCode: String(movement.partCode ?? movement.PartCode ?? ""),
+    partName: String(movement.partName ?? movement.PartName ?? "Repuesto"),
+    quantityChange: Number(movement.quantityChange ?? movement.QuantityChange ?? 0),
+    resultingStock: Number(movement.resultingStock ?? movement.ResultingStock ?? 0),
+    unitPrice: Number(movement.unitPrice ?? movement.UnitPrice ?? 0),
+    action: String(movement.action ?? movement.Action ?? "Movimiento"),
+    comment: movement.comment ?? movement.Comment ?? undefined,
+    createdAt: String(movement.createdAt ?? movement.CreatedAt ?? ""),
+  };
+}
+
+function normalizeStockSubmission(submission: ApiStockSubmission): StockSubmission {
+  const id = String(submission.id ?? submission.Id ?? submission.submissionId ?? "");
+  const supplierPrice = Number(submission.supplierPrice ?? submission.SupplierPrice ?? 0);
+  const profitPercentage = Number(submission.profitPercentage ?? submission.ProfitPercentage ?? 0);
+  return {
+    id,
+    submissionId: id,
+    name: String(submission.name ?? submission.productName ?? submission.ProductName ?? "Producto"),
+    referenceCode: String(submission.referenceCode ?? submission.ReferenceCode ?? ""),
+    supplier: String(submission.supplier ?? submission.Supplier ?? (submission.supplierId ?? submission.SupplierId ? `Proveedor #${submission.supplierId ?? submission.SupplierId}` : "Proveedor")),
+    supplierPrice,
+    profitPercentage,
+    salePrice: Number(submission.salePrice ?? submission.SalePrice ?? calculateProductSalePrice(supplierPrice, profitPercentage)),
+    quantity: Number(submission.quantity ?? submission.Quantity ?? 0),
+    category: String(submission.category ?? submission.categoryName ?? submission.CategoryName ?? "Repuesto"),
+    brand: String(submission.brand ?? submission.brandName ?? submission.BrandName ?? ""),
+    description: String(submission.description ?? submission.Description ?? ""),
+    minimumStock: Number(submission.minimumStock ?? submission.MinimumStock ?? 0),
+    observations: submission.observations,
+    submittedAt: String(submission.submittedAt ?? submission.createdAt ?? submission.CreatedAt ?? ""),
+    warehouseChief: String(submission.warehouseChief ?? "Jefe de stock"),
+    status: String(submission.status ?? submission.Status ?? "Draft") as StockSubmission["status"],
+    warehouseComment: submission.warehouseComment ?? submission.WarehouseComment ?? undefined,
+    inventoryManagerComment: submission.inventoryManagerComment ?? submission.InventoryManagerComment ?? undefined,
+  };
+}
+
+function normalizeCatalogItem(item: ApiCatalogItem) {
+  return {
+    id: String(item.id ?? item.Id ?? ""),
+    name: String(item.name ?? item.Name ?? "Sin nombre"),
   };
 }
 
@@ -218,6 +373,24 @@ function normalizeAdditionalRequest(request: unknown, index: number): Additional
     status: String(item.status ?? "PendingClientApproval") as AdditionalRequest["status"],
     priority: item.priority === "Baja" || item.priority === "Alta" ? item.priority : "Media",
     decisionHistory: Array.isArray(item.decisionHistory) ? item.decisionHistory.map(String) : [],
+  };
+}
+
+function normalizeMechanicDiagnostic(diagnostic: ApiMechanicDiagnostic): MechanicDiagnostic {
+  return {
+    id: String(diagnostic.id ?? diagnostic.Id ?? ""),
+    serviceOrderId: String(diagnostic.serviceOrderId ?? diagnostic.ServiceOrderId ?? ""),
+    orderCode: String(diagnostic.orderCode ?? diagnostic.OrderCode ?? "Orden sin número"),
+    customer: String(diagnostic.customer ?? diagnostic.Customer ?? "Cliente"),
+    vehicle: String(diagnostic.vehicle ?? diagnostic.Vehicle ?? "Vehículo"),
+    mechanicPersonId: String(diagnostic.mechanicPersonId ?? diagnostic.MechanicPersonId ?? ""),
+    mechanic: String(diagnostic.mechanic ?? diagnostic.Mechanic ?? "Mecánico"),
+    status: String(diagnostic.status ?? diagnostic.Status ?? "PendingWorkshopChiefApproval") as MechanicDiagnostic["status"],
+    findings: String(diagnostic.findings ?? diagnostic.Findings ?? ""),
+    recommendedWork: String(diagnostic.recommendedWork ?? diagnostic.RecommendedWork ?? ""),
+    workshopChiefComment: diagnostic.workshopChiefComment ?? diagnostic.WorkshopChiefComment ?? undefined,
+    submittedAt: String(diagnostic.submittedAt ?? diagnostic.SubmittedAt ?? ""),
+    reviewedAt: String(diagnostic.reviewedAt ?? diagnostic.ReviewedAt ?? ""),
   };
 }
 
@@ -416,8 +589,16 @@ export function calculateWorkshopServicePrice(parts: WorkshopServicePart[], labo
 }
 
 export const operationsService = {
-  createAdditionalRequest: (payload: Partial<AdditionalRequest>) =>
-    apiData(apiClient.post<AdditionalRequest>(`/api/mechanic/orders/${payload.orderId}/additional-requests`, payload)),
+  createAdditionalRequest: (payload: Partial<AdditionalRequest> & { workshopServiceId?: string; partId?: string }) => {
+    const body = {
+      requestType: payload.requestType === "Part" ? 2 : 1,
+      workshopServiceId: payload.workshopServiceId ? Number(payload.workshopServiceId) : undefined,
+      partId: payload.partId ? Number(payload.partId) : undefined,
+      quantity: payload.quantity ? Number(payload.quantity) : undefined,
+      technicalComment: [payload.problemDescription, payload.technicalJustification, payload.observations].filter(Boolean).join("\n\n"),
+    };
+    return apiData(apiClient.post<AdditionalRequest>(`/api/mechanic/orders/${payload.orderId}/additional-requests`, body));
+  },
   getMechanicRequests: () =>
     apiData(apiClient.get<unknown[]>("/api/mechanic/requests")).then((requests) => requests.map(normalizeAdditionalRequest)),
   getMechanicOrders: () => apiData(apiClient.get<ServiceOrder[]>("/api/mechanic/orders")),
@@ -425,6 +606,18 @@ export const operationsService = {
     apiData(apiClient.get<ServiceOrder>(`/api/mechanic/orders/${orderId}`)),
   registerMechanicWork: (orderId: string, payload: { workPerformed: string; observations?: string }) =>
     apiData(apiClient.post(`/api/mechanic/orders/${orderId}/work`, payload)),
+  completeMechanicOrder: (orderId: string, payload: { workPerformed: string }) =>
+    apiData(apiClient.post(`/api/mechanic/orders/${orderId}/complete`, payload)),
+  updateMechanicOrderServiceStatus: (orderServiceId: string, status: string) =>
+    apiData(apiClient.patch(`/api/mechanic/order-services/${orderServiceId}/status`, { status })),
+  getMechanicDiagnostics: () =>
+    apiData(apiClient.get<ApiMechanicDiagnostic[]>("/api/mechanic/diagnostics")).then((items) => items.map(normalizeMechanicDiagnostic)),
+  submitMechanicDiagnostic: (orderId: string, payload: { findings: string; recommendedWork: string }) =>
+    apiData(apiClient.post<ApiMechanicDiagnostic>(`/api/mechanic/orders/${orderId}/diagnostics`, payload)).then(normalizeMechanicDiagnostic),
+  getMechanicSpecialties: () =>
+    apiData(apiClient.get<Array<{ id: number; name: string }>>("/api/mechanics-catalog/specialties")),
+  getMechanicsBySpecialty: (specialtyName: string) =>
+    apiData(apiClient.get<Array<{ personId: number; fullName: string; specialtyId: number; specialtyName: string }>>("/api/mechanics-catalog/mechanics", { params: { specialtyName } })),
   getWorkshopChiefRequests: () =>
     apiData(apiClient.get<unknown[]>("/api/workshop-chief/requests")).then((requests) => requests.map(normalizeAdditionalRequest)),
   getWorkshopChiefRequestById: (requestId: string) =>
@@ -433,6 +626,14 @@ export const operationsService = {
     apiData(apiClient.post<AdditionalRequest>(`/api/workshop-chief/requests/${requestId}/approve`, { comment })),
   rejectRequestByWorkshopChief: (requestId: string, comment: string) =>
     apiData(apiClient.post<AdditionalRequest>(`/api/workshop-chief/requests/${requestId}/reject`, { comment })),
+  getWorkshopChiefDiagnostics: () =>
+    apiData(apiClient.get<ApiMechanicDiagnostic[]>("/api/workshop-chief/diagnostics")).then((items) => items.map(normalizeMechanicDiagnostic)),
+  getWorkshopChiefDiagnosticById: (diagnosticId: string) =>
+    apiData(apiClient.get<ApiMechanicDiagnostic>(`/api/workshop-chief/diagnostics/${diagnosticId}`)).then(normalizeMechanicDiagnostic),
+  approveMechanicDiagnostic: (diagnosticId: string, comment: string) =>
+    apiData(apiClient.post<ApiMechanicDiagnostic>(`/api/workshop-chief/diagnostics/${diagnosticId}/approve`, { comment })).then(normalizeMechanicDiagnostic),
+  rejectMechanicDiagnostic: (diagnosticId: string, comment: string) =>
+    apiData(apiClient.post<ApiMechanicDiagnostic>(`/api/workshop-chief/diagnostics/${diagnosticId}/reject`, { comment })).then(normalizeMechanicDiagnostic),
   getClientPendingApprovals: getMappedClientApprovals,
   approveRequestByClient: (requestId: string) =>
     apiData(apiClient.post<AdditionalRequest>(`/api/client/approvals/${requestId}/approve`, { comment: "" })),
@@ -453,25 +654,73 @@ export const operationsService = {
     apiData(apiClient.post<WarehouseProduct>("/api/warehouse/products", payload)),
   updateWarehouseProduct: (id: string, payload: Partial<WarehouseProduct>) =>
     apiData(apiClient.put<WarehouseProduct>(`/api/warehouse/products/${id}`, payload)),
-  getWarehouseProducts: () => apiData(apiClient.get<WarehouseProduct[]>("/api/warehouse/products")),
-  createStockSubmission: (payload: Partial<StockSubmission>) =>
-    apiData(apiClient.post<StockSubmission>("/api/warehouse/stock-submissions", payload)),
+  getWarehouseProducts: () =>
+    apiData(apiClient.get<ApiPart[]>("/api/stock/parts")).then((parts) => parts.map(normalizeInventoryPart)),
+  getStockDashboard: () =>
+    apiData(apiClient.get<StockDashboard>("/api/stock/dashboard")).then((dashboard) => ({
+      ...dashboard,
+      recentMovements: (dashboard.recentMovements ?? []).map(normalizeStockMovement),
+    })),
+  getStockParts: (params?: { search?: string; stockStatus?: string }) =>
+    apiData(apiClient.get<ApiPart[]>("/api/stock/parts", { params })).then((parts) => parts.map(normalizeInventoryPart)),
+  getStockMovements: () =>
+    apiData(apiClient.get<ApiStockMovement[]>("/api/stock/movements")).then((movements) => movements.map(normalizeStockMovement)),
+  registerStockIn: (payload: { partId: string; quantity: number; comment?: string }) =>
+    apiData(apiClient.post<ApiStockMovement>("/api/stock/movements/in", {
+      partId: Number(payload.partId),
+      quantity: payload.quantity,
+      comment: payload.comment,
+    })).then(normalizeStockMovement),
+  registerStockOut: (payload: { partId: string; quantity: number; comment?: string }) =>
+    apiData(apiClient.post<ApiStockMovement>("/api/stock/movements/out", {
+      partId: Number(payload.partId),
+      quantity: payload.quantity,
+      comment: payload.comment,
+    })).then(normalizeStockMovement),
+  createStockSubmission: (payload: Partial<StockSubmission> & {
+    productName?: string;
+    supplierId?: string | number;
+    partCategoryId?: string | number | null;
+    partBrandId?: string | number | null;
+    categoryName?: string;
+    brandName?: string;
+  }) => {
+    const body = {
+      productName: payload.productName ?? payload.name,
+      referenceCode: payload.referenceCode,
+      supplierId: Number(payload.supplierId),
+      supplierPrice: Number(payload.supplierPrice ?? 0),
+      profitPercentage: Number(payload.profitPercentage ?? 0),
+      quantity: Number(payload.quantity ?? 0),
+      minimumStock: Number(payload.minimumStock ?? 0),
+      partCategoryId: payload.partCategoryId ? Number(payload.partCategoryId) : undefined,
+      partBrandId: payload.partBrandId ? Number(payload.partBrandId) : undefined,
+      categoryName: payload.categoryName ?? payload.category,
+      brandName: payload.brandName ?? payload.brand,
+      description: payload.description,
+      warehouseComment: payload.observations,
+    };
+    return apiData(apiClient.post<ApiStockSubmission>("/api/warehouse/stock-submissions", body)).then(normalizeStockSubmission);
+  },
   sendStockSubmissionForReview: (id: string) =>
-    apiData(apiClient.post<StockSubmission>(`/api/warehouse/stock-submissions/${id}/send-to-review`)),
-  getStockSubmissions: () => apiData(apiClient.get<StockSubmission[]>("/api/warehouse/stock-submissions")),
+    apiData(apiClient.post<ApiStockSubmission>(`/api/warehouse/stock-submissions/${id}/send-to-review`)).then(normalizeStockSubmission),
+  getStockSubmissions: () =>
+    apiData(apiClient.get<ApiStockSubmission[]>("/api/warehouse/stock-submissions")).then((submissions) => submissions.map(normalizeStockSubmission)),
   getStockSubmissionById: (id: string) =>
-    apiData(apiClient.get<StockSubmission>(`/api/warehouse/stock-submissions/${id}`)),
+    apiData(apiClient.get<ApiStockSubmission>(`/api/warehouse/stock-submissions/${id}`)).then(normalizeStockSubmission),
 
   getInventoryReviewRequests: () =>
-    apiData(apiClient.get<StockSubmission[]>("/api/inventory/review-requests")),
+    apiData(apiClient.get<ApiStockSubmission[]>("/api/inventory/review-requests")).then((submissions) => submissions.map(normalizeStockSubmission)),
   getInventoryReviewRequestById: (id: string) =>
-    apiData(apiClient.get<StockSubmission>(`/api/inventory/review-requests/${id}`)),
+    apiData(apiClient.get<ApiStockSubmission>(`/api/inventory/review-requests/${id}`)).then(normalizeStockSubmission),
   approveStockSubmission: (id: string, comment: string) =>
-    apiData(apiClient.post<StockSubmission>(`/api/inventory/review-requests/${id}/approve`, { comment })),
+    apiData(apiClient.post<ApiStockSubmission>(`/api/inventory/review-requests/${id}/approve`, { comment })).then(normalizeStockSubmission),
   rejectStockSubmission: (id: string, comment: string) =>
-    apiData(apiClient.post<StockSubmission>(`/api/inventory/review-requests/${id}/reject`, { comment })),
-  getInventoryProducts: () => apiData(apiClient.get<WarehouseProduct[]>("/api/inventory/products")),
-  getInventoryHistory: () => apiData(apiClient.get<StockSubmission[]>("/api/inventory/history")),
+    apiData(apiClient.post<ApiStockSubmission>(`/api/inventory/review-requests/${id}/reject`, { comment })).then(normalizeStockSubmission),
+  getInventoryProducts: () =>
+    apiData(apiClient.get<ApiPart[]>("/api/inventory/products")).then((parts) => parts.map(normalizeInventoryPart)),
+  getInventoryHistory: () =>
+    apiData(apiClient.get<ApiStockMovement[]>("/api/inventory/history")).then((movements) => movements.map(normalizeStockMovement)),
 
   getAvailableWorkshopParts: async () => {
     const response = await apiClient.get<ApiPart[] | ApiPagedResult<ApiPart>>("/api/parts", { params: { pageNumber: 1, pageSize: 500 } });
@@ -479,6 +728,12 @@ export const operationsService = {
   },
   getWorkshopServices: () =>
     apiData(apiClient.get<ApiWorkshopService[]>("/api/workshop-services")).then((services) => services.map(normalizeWorkshopService)),
+  getPartCategoriesForStock: () =>
+    apiData(apiClient.get<ApiCatalogItem[] | ApiPagedResult<ApiCatalogItem>>("/api/partcategories", { params: { pageNumber: 1, pageSize: 500 } })).then((data) => unwrapPagedItems(data).map(normalizeCatalogItem)),
+  getPartBrandsForStock: () =>
+    apiData(apiClient.get<ApiCatalogItem[] | ApiPagedResult<ApiCatalogItem>>("/api/partbrands", { params: { pageNumber: 1, pageSize: 500 } })).then((data) => unwrapPagedItems(data).map(normalizeCatalogItem)),
+  getSuppliersForStock: () =>
+    apiData(apiClient.get<ApiCatalogItem[] | ApiPagedResult<ApiCatalogItem>>("/api/suppliers", { params: { pageNumber: 1, pageSize: 500 } })).then((data) => unwrapPagedItems(data).map(normalizeCatalogItem)),
   getWorkshopServiceById: (id: string) =>
     apiData(apiClient.get<ApiWorkshopService>(`/api/workshop-services/${id}`)).then(normalizeWorkshopService),
   createWorkshopService: (payload: Pick<WorkshopService, "name" | "description" | "category" | "laborPercentage" | "parts">) =>
@@ -513,10 +768,20 @@ export const {
   getMechanicOrders,
   getMechanicOrderById,
   registerMechanicWork,
+  completeMechanicOrder,
+  updateMechanicOrderServiceStatus,
+  getMechanicDiagnostics,
+  submitMechanicDiagnostic,
+  getMechanicSpecialties,
+  getMechanicsBySpecialty,
   getWorkshopChiefRequests,
   getWorkshopChiefRequestById,
   approveRequestByWorkshopChief,
   rejectRequestByWorkshopChief,
+  getWorkshopChiefDiagnostics,
+  getWorkshopChiefDiagnosticById,
+  approveMechanicDiagnostic,
+  rejectMechanicDiagnostic,
   getClientPendingApprovals,
   approveRequestByClient,
   rejectRequestByClient,
@@ -526,6 +791,11 @@ export const {
   createWarehouseProduct,
   updateWarehouseProduct,
   getWarehouseProducts,
+  getStockDashboard,
+  getStockParts,
+  getStockMovements,
+  registerStockIn,
+  registerStockOut,
   createStockSubmission,
   sendStockSubmissionForReview,
   getStockSubmissions,
@@ -538,6 +808,9 @@ export const {
   getAvailableWorkshopParts,
   getInventoryHistory,
   getWorkshopServices,
+  getPartCategoriesForStock,
+  getPartBrandsForStock,
+  getSuppliersForStock,
   getWorkshopServiceById,
   createWorkshopService,
   updateWorkshopService,

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { ApiErrorAlert } from "../../../shared/components/feedback/ApiErrorAlert";
 import { LoadingState } from "../../../shared/components/feedback/LoadingState";
 import { PageHeader } from "../../../shared/components/layout/PageHeader";
@@ -31,6 +31,9 @@ function DetailItem({ label, value }: { label: string; value: string }) {
 
 export function ServiceOrderDetailPage() {
   const { id = "" } = useParams();
+  const location = useLocation();
+  const backTo = location.pathname.startsWith("/mechanic/chief-orders") ? "/mechanic/chief-orders" : "/service-orders";
+  const backLabel = location.pathname.startsWith("/mechanic/chief-orders") ? "Regresar a órdenes del jefe" : "Regresar";
   const orderQuery = useQuery({
     queryKey: ["service-order", id],
     queryFn: () => serviceOrdersService.getById(id),
@@ -56,7 +59,7 @@ export function ServiceOrderDetailPage() {
       <PageHeader
         title={order.code}
         description={`${order.vehicle} · ${order.customer}`}
-        actions={<Link to="/service-orders"><Button variant="secondary" icon={<ArrowLeft className="h-4 w-4" />}>Regresar</Button></Link>}
+        actions={<Link to={backTo}><Button variant="secondary" icon={<ArrowLeft className="h-4 w-4" />}>{backLabel}</Button></Link>}
       />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_300px]">

@@ -23,6 +23,8 @@ type ApiServiceOrder = Partial<ServiceOrder> & {
   EstimatedDeliveryDate?: string;
   workPerformed?: string;
   WorkPerformed?: string;
+  generalDescription?: string | null;
+  GeneralDescription?: string | null;
 };
 
 type ApiOrderService = {
@@ -85,7 +87,7 @@ function normalizeServiceOrder(order: ApiServiceOrder): ServiceOrder {
     estimatedDelivery: String(order.estimatedDelivery ?? order.estimatedDeliveryDate ?? order.EstimatedDeliveryDate ?? ""),
     estimatedTotal: Number(order.estimatedTotal ?? order.EstimatedTotal ?? 0),
     workPerformed: order.workPerformed ?? order.WorkPerformed,
-    generalDescription: order.generalDescription,
+    generalDescription: order.generalDescription ?? order.GeneralDescription ?? undefined,
     orderServices: order.orderServices,
     additionalRequests: order.additionalRequests,
   };
@@ -167,15 +169,25 @@ export const serviceOrdersService = {
       objectsInsideVehicle: string;
       notes?: string;
     };
-    serviceAssignment: {
+    serviceAssignment?: {
       serviceTypeId: number;
+      workshopServiceId?: number | null;
       specialtyId: number;
       mechanicPersonId: number;
       observation: string;
       laborCost: number;
     };
+    serviceAssignments?: Array<{
+      serviceTypeId: number;
+      workshopServiceId?: number | null;
+      specialtyId: number;
+      mechanicPersonId: number;
+      observation: string;
+      laborCost: number;
+    }>;
   }) => apiClient.post("/api/serviceorders/diagnostic", payload),
   registerWork: (id: string, payload: { workPerformed: string }) => apiClient.post(`/api/mechanic/orders/${id}/work`, payload),
+  completeMechanicOrder: (id: string, payload: { workPerformed: string }) => apiClient.post(`/api/mechanic/orders/${id}/complete`, payload),
   changeStatus: (id: string, payload: { orderStatusId: number; userId: number; observation: string }) =>
     apiClient.patch(`/api/serviceorders/${id}/status`, payload),
   listOrderServices: (params: QueryParams) => getPaginated<ApiOrderService>("/api/orderservices", params, []),

@@ -1,10 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ColumnDef } from "@tanstack/react-table";
 import { Eye, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "../../../shared/components/ui/Button";
 import { Card } from "../../../shared/components/ui/Card";
+import { Modal } from "../../../shared/components/ui/Modal";
 import { DataTable } from "../../../shared/components/data-table/DataTable";
 import { TableToolbar } from "../../../shared/components/data-table/TableToolbar";
 import { PageHeader } from "../../../shared/components/layout/PageHeader";
@@ -27,22 +28,13 @@ const statusOptions = [
 
 const activeStatuses = new Set(["Created", "PendingAssignment", "Assigned", "InProgress", "WaitingForPayment", "PaymentUnderReview", "ReadyForDelivery"]);
 
-const columns: ColumnDef<ServiceOrder>[] = [
-  { header: "Código orden", accessorKey: "code" },
-  { header: "Cliente", accessorKey: "customer" },
-  { header: "Vehículo", accessorKey: "vehicle" },
-  { header: "Estado", cell: ({ row }) => <OrderStatusBadge status={row.original.status} /> },
-  { header: "Mecánico asignado", accessorKey: "mechanic" },
-  { header: "Fecha ingreso", cell: ({ row }) => formatDate(row.original.entryDate) },
-  { header: "Entrega estimada", cell: ({ row }) => formatDate(row.original.estimatedDelivery) },
-  { header: "Total estimado", cell: ({ row }) => formatCurrency(row.original.estimatedTotal) },
-  { header: "Acciones", meta: { className: "w-24 whitespace-nowrap text-right" }, cell: ({ row }) => <Link to={`/service-orders/${row.original.id}`}><Button variant="secondary" className="min-h-9 w-20 whitespace-nowrap px-2 text-xs" icon={<Eye className="h-4 w-4" />} aria-label="Ver detalle">Ver</Button></Link> },
-];
-
 function ServiceOrdersTablePage({ pendingClientApprovalOnly = false, createdOnly = false }: { pendingClientApprovalOnly?: boolean; createdOnly?: boolean }) {
   const table = useTableQueryState();
+  const queryClient = useQueryClient();
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({ statusId: "", customer: "", vehicle: "", orderCode: "", mechanic: "" });
+  const [orderToComplete, setOrderToComplete] = useState<ServiceOrder | null>(null);
+  const [workPerformed, setWorkPerformed] = useState("");
   const search = [table.search, filters.customer, filters.orderCode, filters.mechanic].filter(Boolean).join(" ");
   const queryParams = {
     ...table.params,
@@ -51,6 +43,50 @@ function ServiceOrdersTablePage({ pendingClientApprovalOnly = false, createdOnly
     vin: filters.vehicle || undefined,
   };
   const query = useQuery({ queryKey: ["service-orders", table.page, table.pageSize, search, filters.statusId, filters.vehicle, pendingClientApprovalOnly, createdOnly], queryFn: () => serviceOrdersService.list(queryParams) });
+  const completeMutation = useMutation({
+    mutationFn: () => {
+      if (!orderToComplete) throw new Error("No hay una orden seleccionada.");
+      return serviceOrdersService.completeMechanicOrder(orderToComplete.id, { workPerformed: workPerformed.trim() });
+    },
+    onSuccess: async () => {
+      setOrderToComplete(null);
+      setWorkPerformed("");
+      await queryClient.invalidateQueries({ queryKey: ["service-orders"] });
+    },
+  });
+  const columns: ColumnDef<ServiceOrder>[] = [
+    { header: "Código orden", accessorKey: "code" },
+    { header: "Cliente", accessorKey: "customer" },
+    { header: "Vehículo", accessorKey: "vehicle" },
+    { header: "Estado", cell: ({ row }) => <OrderStatusBadge status={row.original.status} /> },
+    { header: "Mecánico asignado", accessorKey: "mechanic" },
+    { header: "Fecha ingreso", cell: ({ row }) => formatDate(row.original.entryDate) },
+    { header: "Entrega estimada", cell: ({ row }) => formatDate(row.original.estimatedDelivery) },
+    { header: "Total estimado", cell: ({ row }) => formatCurrency(row.original.estimatedTotal) },
+    {
+      header: "Acciones",
+      meta: { className: "w-28 whitespace-nowrap text-right" },
+      cell: ({ row }) => (
+        <div className="flex flex-col items-end gap-2">
+          <Link to={createdOnly ? `/mechanic/chief-orders/${row.original.id}` : `/service-orders/${row.original.id}`}>
+            <Button variant="secondary" className="min-h-9 w-24 whitespace-nowrap px-2 text-xs" icon={<Eye className="h-4 w-4" />} aria-label="Ver detalle">Ver</Button>
+          </Link>
+          {createdOnly ? (
+            <Button
+              className="min-h-9 w-24 whitespace-nowrap px-2 text-xs"
+              isLoading={completeMutation.isPending}
+              onClick={() => {
+                setOrderToComplete(row.original);
+                setWorkPerformed(row.original.workPerformed ?? "");
+              }}
+            >
+              Completar
+            </Button>
+          ) : null}
+        </div>
+      ),
+    },
+  ];
   const visibleOrders = useMemo(() => {
     return (query.data?.data ?? []).filter((order) => {
       if (createdOnly) {
@@ -85,6 +121,45 @@ function ServiceOrdersTablePage({ pendingClientApprovalOnly = false, createdOnly
         </Card>
       ) : null}
       <DataTable data={visibleOrders} columns={columns} isLoading={query.isLoading} isError={query.isError} error={query.error} totalCount={query.data?.totalCount ?? visibleOrders.length} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por cliente, vehículo, estado, orden o mecánico" onFiltersClick={() => setShowFilters((current) => !current)} />} />
+      <Modal
+        open={Boolean(orderToComplete)}
+        title={orderToComplete ? `Completar ${orderToComplete.code}` : "Completar orden"}
+        onClose={() => {
+          if (!completeMutation.isPending) {
+            setOrderToComplete(null);
+            setWorkPerformed("");
+          }
+        }}
+      >
+        <div className="grid gap-4">
+          <p className="text-sm text-slate-600">Registra el trabajo realizado antes de enviar la orden a aprobación.</p>
+          {completeMutation.error ? <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">No se pudo completar la orden.</p> : null}
+          <label className="block">
+            <span className="text-sm font-semibold text-slate-700">Trabajo realizado</span>
+            <textarea
+              className="mt-1 min-h-32 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              value={workPerformed}
+              onChange={(event) => setWorkPerformed(event.target.value)}
+              placeholder="Describe el diagnóstico, revisión o trabajo completado."
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              disabled={completeMutation.isPending}
+              onClick={() => {
+                setOrderToComplete(null);
+                setWorkPerformed("");
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button disabled={!workPerformed.trim()} isLoading={completeMutation.isPending} onClick={() => completeMutation.mutate()}>
+              Completar orden
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }

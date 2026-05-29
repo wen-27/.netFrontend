@@ -10,6 +10,8 @@ import {
   History,
   Package,
   PackageCheck,
+  PackageMinus,
+  PackagePlus,
   PackageSearch,
   Plus,
   Wrench,
@@ -21,19 +23,19 @@ import { MetricCard } from "../../../shared/components/layout/MetricCard";
 import { Card } from "../../../shared/components/ui/Card";
 import { Button } from "../../../shared/components/ui/Button";
 import { Badge } from "../../../shared/components/ui/Badge";
+import { Modal } from "../../../shared/components/ui/Modal";
 import { ApiErrorAlert } from "../../../shared/components/feedback/ApiErrorAlert";
 import { TablePagination } from "../../../shared/components/data-table/TablePagination";
 import { TableToolbar } from "../../../shared/components/data-table/TableToolbar";
 import { formatCurrency, formatDateTime } from "../../../shared/utils/formatters";
 import { getPaymentStatusLabel, getPaymentStatusTone } from "../../../shared/utils/statusLabels";
 import { formatApiError } from "../../../shared/utils/apiErrors";
-import { AdditionalRequest, ClientPayment, OrderServiceItem, ServiceOrder, StockSubmission } from "../../../shared/types/domain";
+import { AdditionalRequest, ClientPayment, MechanicDiagnostic, OrderServiceItem, ServiceOrder, StockMovement, StockSubmission, WarehouseProduct } from "../../../shared/types/domain";
 import { serviceOrdersService } from "../../service-orders/services/serviceOrdersService";
 import {
   AdditionalRequestStatusBadge,
   ClientApprovalActionCard,
   ClientOrderStatusCard,
-  InventoryProductTable,
   MechanicRequestModal,
   OrderPaymentAlert,
   OrderServicesTimeline,
@@ -55,9 +57,14 @@ import {
   getInventoryProducts,
   getInventoryReviewRequestById,
   getInventoryReviewRequests,
+  getStockDashboard,
+  getStockMovements,
+  getStockParts,
   getMechanicOrderById,
   getMechanicOrders,
   getMechanicRequests,
+  getMechanicDiagnostics,
+  submitMechanicDiagnostic,
   getClientPayments,
   getClientPaymentById,
   getPaymentsPendingReceptionVerification,
@@ -67,13 +74,19 @@ import {
   getAvailableWorkshopParts,
   getWorkshopChiefRequestById,
   getWorkshopChiefRequests,
+  getWorkshopChiefDiagnostics,
+  getWorkshopChiefDiagnosticById,
   getWorkshopServices,
   createWorkshopService,
   updateWorkshopService,
   approveRequestByWorkshopChief,
   rejectRequestByWorkshopChief,
+  approveMechanicDiagnostic,
+  rejectMechanicDiagnostic,
   approveRequestByClient,
   rejectRequestByClient,
+  registerStockIn,
+  registerStockOut,
 } from "../services/operationsService";
 
 function useFallbackQuery<T>(queryKey: string[], queryFn: () => Promise<T>) {
@@ -183,20 +196,183 @@ export function WorkshopChiefDashboardPage() {
   );
 }
 
+function getProductStockStatus(product: WarehouseProduct) {
+  if (product.quantity <= 0) return "Agotado";
+  if (product.quantity <= product.minimumStock) return "Bajo stock";
+  return "Disponible";
+}
+
+function StockStatusBadge({ product }: { product: WarehouseProduct }) {
+  const status = getProductStockStatus(product);
+  const tone: "green" | "amber" | "red" = status === "Disponible" ? "green" : status === "Bajo stock" ? "amber" : "red";
+  return <Badge tone={tone}>{status}</Badge>;
+}
+
+function StockProductsTable({
+  products,
+  onMovement,
+  showInventoryActions = false,
+}: {
+  products: WarehouseProduct[];
+  onMovement?: (product: WarehouseProduct, type: "in" | "out") => void;
+  showInventoryActions?: boolean;
+}) {
+  return (
+    <Card className="overflow-x-auto">
+      <table className="w-full min-w-[920px] text-left text-sm">
+        <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+          <tr>{["Repuesto", "Referencia", "Categoría", "Marca", "Stock", "Mínimo", "Estado", "Precio", showInventoryActions || onMovement ? "Acciones" : ""].filter(Boolean).map((header) => <th className="px-4 py-3" key={header}>{header}</th>)}</tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {products.length === 0 ? <tr><td className="px-4 py-5 font-semibold text-slate-500" colSpan={showInventoryActions || onMovement ? 9 : 8}>No hay repuestos para mostrar.</td></tr> : null}
+          {products.map((product) => (
+            <tr key={product.id}>
+              <td className="px-4 py-3 font-semibold text-slate-900">{product.name}</td>
+              <td className="px-4 py-3">{product.referenceCode}</td>
+              <td className="px-4 py-3">{product.category}</td>
+              <td className="px-4 py-3">{product.brand || "Sin marca"}</td>
+              <td className="px-4 py-3 font-bold">{product.quantity}</td>
+              <td className="px-4 py-3">{product.minimumStock}</td>
+              <td className="px-4 py-3"><StockStatusBadge product={product} /></td>
+              <td className="px-4 py-3">{formatCurrency(product.salePrice)}</td>
+              {onMovement || showInventoryActions ? (
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap gap-2">
+                    {onMovement ? (
+                      <>
+                        <Button variant="secondary" className="min-h-9 px-3 text-xs" icon={<PackagePlus className="h-4 w-4" />} onClick={() => onMovement(product, "in")}>Entrada</Button>
+                        <Button variant="secondary" className="min-h-9 px-3 text-xs" icon={<PackageMinus className="h-4 w-4" />} disabled={product.quantity <= 0} onClick={() => onMovement(product, "out")}>Salida</Button>
+                      </>
+                    ) : null}
+                    {showInventoryActions ? <Link to={`/parts/${product.id}/edit`}><Button variant="secondary" className="min-h-9 px-3 text-xs">Editar</Button></Link> : null}
+                  </div>
+                </td>
+              ) : null}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+  );
+}
+
+function StockMovementTable({ movements }: { movements: StockMovement[] }) {
+  return (
+    <Card className="overflow-x-auto">
+      <table className="w-full min-w-[820px] text-left text-sm">
+        <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+          <tr>{["Fecha", "Repuesto", "Acción", "Cambio", "Stock resultante", "Precio", "Observación"].map((header) => <th className="px-4 py-3" key={header}>{header}</th>)}</tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {movements.length === 0 ? <tr><td className="px-4 py-5 font-semibold text-slate-500" colSpan={7}>No hay movimientos registrados.</td></tr> : null}
+          {movements.map((movement) => (
+            <tr key={movement.id}>
+              <td className="px-4 py-3">{formatDateTime(movement.createdAt)}</td>
+              <td className="px-4 py-3"><p className="font-semibold text-slate-900">{movement.partName}</p><p className="text-xs text-slate-500">{movement.partCode}</p></td>
+              <td className="px-4 py-3">{movement.action}</td>
+              <td className={`px-4 py-3 font-bold ${movement.quantityChange < 0 ? "text-red-700" : "text-emerald-700"}`}>{movement.quantityChange > 0 ? `+${movement.quantityChange}` : movement.quantityChange}</td>
+              <td className="px-4 py-3">{movement.resultingStock}</td>
+              <td className="px-4 py-3">{formatCurrency(movement.unitPrice)}</td>
+              <td className="px-4 py-3">{movement.comment ?? "Sin observación"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+  );
+}
+
+function StockMovementModal({
+  product,
+  type,
+  onClose,
+}: {
+  product?: WarehouseProduct;
+  type: "in" | "out";
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [quantity, setQuantity] = useState(1);
+  const [comment, setComment] = useState("");
+  const mutation = useMutation({
+    mutationFn: () => {
+      if (!product) throw new Error("Selecciona un repuesto.");
+      const payload = { partId: product.id, quantity, comment: comment.trim() || undefined };
+      return type === "in" ? registerStockIn(payload) : registerStockOut(payload);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["stock-dashboard"] }),
+        queryClient.invalidateQueries({ queryKey: ["stock-parts"] }),
+        queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
+        queryClient.invalidateQueries({ queryKey: ["warehouse-products"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory-products"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory-history"] }),
+      ]);
+      onClose();
+    },
+  });
+  const isOut = type === "out";
+  const invalidOut = product && isOut && quantity > product.quantity;
+
+  return (
+    <Modal open={Boolean(product)} title={isOut ? "Registrar salida de stock" : "Registrar entrada de stock"} onClose={onClose}>
+      {product ? (
+        <div className="space-y-4">
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+            <p className="font-bold text-slate-900">{product.name}</p>
+            <p className="text-slate-500">Stock actual: {product.quantity} · Mínimo: {product.minimumStock}</p>
+          </div>
+          {mutation.isError ? <ApiErrorAlert error={mutation.error} action="No se pudo registrar el movimiento" /> : null}
+          <label className="block text-sm font-semibold text-slate-700">
+            Cantidad
+            <input className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2" type="number" min={1} max={isOut ? product.quantity : undefined} value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} />
+          </label>
+          <label className="block text-sm font-semibold text-slate-700">
+            Motivo u observación
+            <textarea className="mt-1 min-h-24 w-full rounded-md border border-slate-200 px-3 py-2" value={comment} onChange={(event) => setComment(event.target.value)} />
+          </label>
+          {invalidOut ? <p className="text-sm font-semibold text-red-700">La salida no puede superar el stock disponible.</p> : null}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+            <Button isLoading={mutation.isPending} disabled={quantity <= 0 || invalidOut} onClick={() => mutation.mutate()}>{isOut ? "Registrar salida" : "Registrar entrada"}</Button>
+          </div>
+        </div>
+      ) : null}
+    </Modal>
+  );
+}
+
 export function WarehouseChiefDashboardPage() {
+  const dashboardQuery = useFallbackQuery(["stock-dashboard"], getStockDashboard);
   const { data: products = [] } = useFallbackQuery(["warehouse-products"], getWarehouseProducts);
   const { data: submissions = [] } = useFallbackQuery(["warehouse-submissions"], getStockSubmissions);
+  const dashboard = dashboardQuery.data;
   return (
     <>
-      <PageHeader title="Dashboard Jefe de Bodega" description="Registro de productos, envíos a almacén y control de bajo stock." actions={<Link to="/warehouse/products/new"><Button icon={<Plus className="h-4 w-4" />}>Agregar producto</Button></Link>} />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <MetricCard label="Productos registrados" value={String(products.length)} tone="blue" icon={Package} />
+      <PageHeader title="Dashboard Jefe de Stock" description="Control operativo de cantidades, bajo stock y movimientos." actions={<Link to="/warehouse/products"><Button icon={<PackageSearch className="h-4 w-4" />}>Ver stock</Button></Link>} />
+      {dashboardQuery.isError ? <ApiErrorAlert error={dashboardQuery.error} action="No se pudieron cargar las métricas de stock" /> : null}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Repuestos registrados" value={String(dashboard?.totalParts ?? products.length)} tone="blue" icon={Package} />
+        <MetricCard label="Disponibles" value={String(dashboard?.availableParts ?? products.filter((item) => item.quantity > item.minimumStock).length)} tone="green" icon={PackageCheck} />
+        <MetricCard label="Bajo stock" value={String(dashboard?.lowStockParts ?? products.filter((item) => item.quantity > 0 && item.quantity <= item.minimumStock).length)} tone="amber" icon={AlertTriangle} />
+        <MetricCard label="Agotados" value={String(dashboard?.outOfStockParts ?? products.filter((item) => item.quantity <= 0).length)} tone="red" icon={XCircle} />
+      </div>
+      <div className="mt-5 grid gap-4 md:grid-cols-3">
         <MetricCard label="Stock pendiente por revisión" value={String(submissions.filter((item) => item.status === "PendingInventoryManagerReview").length)} tone="amber" icon={PackageSearch} />
         <MetricCard label="Stock rechazado" value={String(submissions.filter((item) => item.status === "RejectedByInventoryManager").length)} tone="red" icon={XCircle} />
         <MetricCard label="Stock aprobado" value={String(submissions.filter((item) => item.status === "ApprovedByInventoryManager").length)} tone="green" icon={PackageCheck} />
-        <MetricCard label="Productos bajo stock" value={String(products.filter((item) => item.quantity <= item.minimumStock).length)} tone="amber" icon={AlertTriangle} />
       </div>
-      <WarehouseProductsPage embedded />
+      <div className="mt-5 grid gap-5 xl:grid-cols-[1.2fr_1fr]">
+        <div>
+          <h2 className="mb-3 font-bold text-slate-900">Repuestos críticos</h2>
+          <StockProductsTable products={products.filter((item) => item.quantity <= item.minimumStock).slice(0, 8)} />
+        </div>
+        <div>
+          <h2 className="mb-3 font-bold text-slate-900">Movimientos recientes</h2>
+          <StockMovementTable movements={dashboard?.recentMovements ?? []} />
+        </div>
+      </div>
     </>
   );
 }
@@ -204,17 +380,26 @@ export function WarehouseChiefDashboardPage() {
 export function InventoryManagerDashboardPage() {
   const { data: review = [] } = useFallbackQuery(["inventory-review"], getInventoryReviewRequests);
   const { data: products = [] } = useFallbackQuery(["inventory-products"], getInventoryProducts);
+  const { data: movements = [] } = useFallbackQuery(["inventory-history"], getInventoryHistory);
   return (
     <>
-      <PageHeader title="Dashboard Jefe de Almacén" description="Aprobación de stock e inventario oficial." />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <PageHeader title="Dashboard Jefe de Inventario" description="Catálogo maestro, precios, stock mínimo y revisión de stock." actions={<Link to="/parts/new"><Button icon={<Plus className="h-4 w-4" />}>Crear repuesto</Button></Link>} />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Solicitudes pendientes" value={String(review.length)} tone="amber" icon={PackageSearch} />
-        <MetricCard label="Solicitudes aprobadas" value={String(review.filter((item) => item.status === "ApprovedByInventoryManager").length)} tone="green" icon={CheckCircle2} />
-        <MetricCard label="Solicitudes rechazadas" value={String(review.filter((item) => item.status === "RejectedByInventoryManager").length)} tone="red" icon={XCircle} />
-        <MetricCard label="Productos en inventario" value={String(products.length)} tone="blue" icon={Package} />
-        <MetricCard label="Productos bajo stock" value={String(products.filter((item) => item.quantity <= item.minimumStock).length)} tone="amber" icon={AlertTriangle} />
+        <MetricCard label="Repuestos en catálogo" value={String(products.length)} tone="blue" icon={Package} />
+        <MetricCard label="Bajo stock" value={String(products.filter((item) => item.quantity > 0 && item.quantity <= item.minimumStock).length)} tone="amber" icon={AlertTriangle} />
+        <MetricCard label="Movimientos registrados" value={String(movements.length)} tone="green" icon={History} />
       </div>
-      <InventoryReviewPage embedded />
+      <div className="mt-5 grid gap-5 xl:grid-cols-[1fr_1fr]">
+        <div>
+          <h2 className="mb-3 font-bold text-slate-900">Revisión pendiente de stock</h2>
+          <InventoryReviewPage embedded />
+        </div>
+        <div>
+          <h2 className="mb-3 font-bold text-slate-900">Catálogo reciente</h2>
+          <StockProductsTable products={products.slice(0, 8)} showInventoryActions />
+        </div>
+      </div>
     </>
   );
 }
@@ -236,8 +421,21 @@ export function MechanicOrdersPage() {
 export function MechanicOrderDetailPage() {
   const { id = "1" } = useParams();
   const [requestOpen, setRequestOpen] = useState(false);
+  const [diagnosticOpen, setDiagnosticOpen] = useState(false);
+  const [findings, setFindings] = useState("");
+  const [recommendedWork, setRecommendedWork] = useState("");
+  const queryClient = useQueryClient();
   const { data: order } = useFallbackQuery(["mechanic-order", id], () => getMechanicOrderById(id));
   const { data: requests = [] } = useFallbackQuery(["mechanic-requests"], getMechanicRequests);
+  const diagnosticMutation = useMutation({
+    mutationFn: () => submitMechanicDiagnostic(id, { findings, recommendedWork }),
+    onSuccess: async () => {
+      setFindings("");
+      setRecommendedWork("");
+      setDiagnosticOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ["mechanic-diagnostics"] });
+    },
+  });
   if (!order) return null;
   return (
     <>
@@ -247,6 +445,7 @@ export function MechanicOrderDetailPage() {
         actions={
           <>
             <Button variant="secondary">Registrar trabajo</Button>
+            <Button variant="secondary" onClick={() => setDiagnosticOpen(true)}>Enviar diagnóstico</Button>
             <Button onClick={() => setRequestOpen(true)}>Solicitar servicio adicional</Button>
             <Button variant="secondary" onClick={() => setRequestOpen(true)}>Solicitar repuesto adicional</Button>
           </>
@@ -259,11 +458,27 @@ export function MechanicOrderDetailPage() {
             <h2 className="font-bold text-slate-900">Historial de trabajo</h2>
             <p className="mt-2 text-sm text-slate-600">Diagnóstico inicial, cambio de aceite y revisión de frenos registrados.</p>
           </Card>
-          <Card className="p-5">
-            <h2 className="font-bold text-slate-900">Comentarios del Jefe de Taller</h2>
-            <p className="mt-2 text-sm text-slate-600">Validar evidencia fotográfica antes de reenviar solicitudes rechazadas.</p>
-          </Card>
           <RequestsTable requests={requests} />
+          {diagnosticOpen ? (
+            <Card className="p-5">
+              <h2 className="font-bold text-slate-900">Enviar diagnóstico al Jefe de Taller</h2>
+              {diagnosticMutation.error ? <ApiErrorAlert error={diagnosticMutation.error} action="No se pudo enviar el diagnóstico" className="mt-4" /> : null}
+              <div className="mt-4 grid gap-4">
+                <label>
+                  <span className="text-sm font-semibold text-slate-700">Hallazgos</span>
+                  <textarea className="mt-1 min-h-24 w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" value={findings} onChange={(event) => setFindings(event.target.value)} />
+                </label>
+                <label>
+                  <span className="text-sm font-semibold text-slate-700">Trabajo recomendado</span>
+                  <textarea className="mt-1 min-h-24 w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" value={recommendedWork} onChange={(event) => setRecommendedWork(event.target.value)} />
+                </label>
+                <div className="flex justify-end gap-2">
+                  <Button variant="secondary" onClick={() => setDiagnosticOpen(false)}>Cancelar</Button>
+                  <Button disabled={!findings.trim() || !recommendedWork.trim() || diagnosticMutation.isPending} onClick={() => diagnosticMutation.mutate()}>Enviar</Button>
+                </div>
+              </div>
+            </Card>
+          ) : null}
         </div>
         <Card className="h-fit p-5">
           <h2 className="font-bold text-slate-900">Resumen</h2>
@@ -282,10 +497,136 @@ export function MechanicOrderDetailPage() {
 
 export function MechanicRequestsPage() {
   const { data = [] } = useFallbackQuery(["mechanic-requests"], getMechanicRequests);
+  const [requestOpen, setRequestOpen] = useState(false);
   return (
     <>
-      <PageHeader title="Mis solicitudes" description="Solicitudes adicionales enviadas al Jefe de Taller y su respuesta." />
-      <RequestsTable requests={data} detailPathPrefix="/workshop-chief/requests" />
+      <PageHeader
+        title="Mis solicitudes"
+        description="Solicitudes adicionales enviadas al Jefe de Taller y su respuesta."
+        actions={<Button icon={<Plus className="h-4 w-4" />} onClick={() => setRequestOpen(true)}>Hacer solicitud a orden</Button>}
+      />
+      <RequestsTable requests={data} allowReviewActions={false} />
+      <MechanicRequestModal open={requestOpen} onClose={() => setRequestOpen(false)} />
+    </>
+  );
+}
+
+export function MechanicDiagnosticsPage() {
+  const query = useFallbackQuery(["mechanic-diagnostics"], getMechanicDiagnostics);
+  const ordersQuery = useQuery({
+    queryKey: ["service-orders-for-mechanic-diagnostics"],
+    queryFn: () => serviceOrdersService.list({ pageNumber: 1, pageSize: 500 }),
+    staleTime: 60_000,
+  });
+  const diagnostics = query.data ?? [];
+  const diagnosticOrders = (ordersQuery.data?.data ?? []).filter((order) =>
+    String(order.generalDescription ?? "").toLowerCase().includes("problema reportado"),
+  );
+  const diagnosticOrderRows: MechanicDiagnostic[] = diagnosticOrders
+    .filter((order) => !diagnostics.some((diagnostic) => diagnostic.serviceOrderId === order.id))
+    .map((order) => ({
+      id: `order-${order.id}`,
+      serviceOrderId: order.id,
+      orderCode: order.code,
+      customer: order.customer,
+      vehicle: order.vehicle,
+      mechanicPersonId: "",
+      mechanic: order.mechanic,
+      status: "PendingWorkshopChiefApproval",
+      findings: order.generalDescription || order.workPerformed || "Orden de diagnóstico creada.",
+      recommendedWork: "Pendiente de registrar diagnóstico.",
+      submittedAt: order.entryDate,
+    }));
+  const visibleDiagnostics = [...diagnosticOrderRows, ...diagnostics];
+  return (
+    <>
+      <PageHeader title="Mis diagnósticos" description="Diagnósticos enviados al Jefe de Taller y estado de aprobación." />
+      {query.isError ? <ApiErrorAlert error={query.error} action="No se pudieron cargar los diagnósticos" className="mb-4" /> : null}
+      {ordersQuery.isError ? <ApiErrorAlert error={ordersQuery.error} action="No se pudieron cargar las órdenes de diagnóstico" className="mb-4" /> : null}
+      <DiagnosticTable diagnostics={visibleDiagnostics} />
+    </>
+  );
+}
+
+export function WorkshopChiefDiagnosticsPendingPage() {
+  const query = useFallbackQuery(["workshop-chief-diagnostics"], getWorkshopChiefDiagnostics);
+  const diagnostics = (query.data ?? []).filter((item) => item.status === "PendingWorkshopChiefApproval");
+  return (
+    <>
+      <PageHeader title="Diagnósticos por aprobar" description="Diagnósticos enviados por mecánicos de diagnóstico pendientes de decisión." />
+      {query.isError ? <ApiErrorAlert error={query.error} action="No se pudieron cargar los diagnósticos" className="mb-4" /> : null}
+      <DiagnosticTable diagnostics={diagnostics} detailPathPrefix="/workshop-chief/diagnostics" />
+    </>
+  );
+}
+
+export function WorkshopChiefDiagnosticsHistoryPage() {
+  const query = useFallbackQuery(["workshop-chief-diagnostics"], getWorkshopChiefDiagnostics);
+  const diagnostics = query.data ?? [];
+  return (
+    <>
+      <PageHeader title="Historial de diagnósticos" description="Diagnósticos aprobados y desaprobados por el Jefe de Taller." />
+      <div className="space-y-5">
+        <section>
+          <h2 className="mb-3 font-bold text-slate-900">Aprobados</h2>
+          <DiagnosticTable diagnostics={diagnostics.filter((item) => item.status === "Approved")} detailPathPrefix="/workshop-chief/diagnostics" />
+        </section>
+        <section>
+          <h2 className="mb-3 font-bold text-slate-900">Desaprobados</h2>
+          <DiagnosticTable diagnostics={diagnostics.filter((item) => item.status === "Rejected")} detailPathPrefix="/workshop-chief/diagnostics" />
+        </section>
+      </div>
+    </>
+  );
+}
+
+export function WorkshopChiefDiagnosticDetailPage() {
+  const { id = "" } = useParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [comment, setComment] = useState("");
+  const query = useFallbackQuery(["workshop-chief-diagnostic", id], () => getWorkshopChiefDiagnosticById(id));
+  const diagnostic = query.data;
+  useEffect(() => setComment(diagnostic?.workshopChiefComment ?? ""), [diagnostic?.id, diagnostic?.workshopChiefComment]);
+  const approveMutation = useMutation({
+    mutationFn: () => approveMechanicDiagnostic(id, comment.trim() || "Diagnóstico aprobado."),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["workshop-chief-diagnostics"] });
+      navigate("/workshop-chief/diagnostics/history");
+    },
+  });
+  const rejectMutation = useMutation({
+    mutationFn: () => rejectMechanicDiagnostic(id, comment.trim() || "Diagnóstico desaprobado."),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["workshop-chief-diagnostics"] });
+      navigate("/workshop-chief/diagnostics/history");
+    },
+  });
+  const canReview = diagnostic?.status === "PendingWorkshopChiefApproval";
+  return (
+    <>
+      <PageHeader title={diagnostic?.orderCode ?? "Detalle diagnóstico"} description={diagnostic ? `${diagnostic.customer} · ${diagnostic.vehicle}` : "Revisión de diagnóstico"} actions={<Link to="/workshop-chief/diagnostics"><Button variant="secondary" icon={<ArrowLeft className="h-4 w-4" />}>Regresar</Button></Link>} />
+      {query.isError ? <ApiErrorAlert error={query.error} action="No se pudo cargar el diagnóstico" className="mb-4" /> : null}
+      {approveMutation.error || rejectMutation.error ? <ApiErrorAlert error={approveMutation.error ?? rejectMutation.error} action="No se pudo procesar el diagnóstico" className="mb-4" /> : null}
+      {diagnostic ? (
+        <Card className="p-5">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Info label="Orden" value={diagnostic.orderCode} />
+            <Info label="Mecánico" value={diagnostic.mechanic} />
+            <Info label="Cliente" value={diagnostic.customer} />
+            <Info label="Vehículo" value={diagnostic.vehicle} />
+          </div>
+          <div className="mt-5 grid gap-4">
+            <Info label="Hallazgos" value={diagnostic.findings} />
+            <Info label="Trabajo recomendado" value={diagnostic.recommendedWork} />
+            <label>
+              <span className="text-sm font-semibold text-slate-700">Comentario del Jefe de Taller</span>
+              <textarea className="mt-1 min-h-24 w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" value={comment} onChange={(event) => setComment(event.target.value)} disabled={!canReview} />
+            </label>
+          </div>
+          {canReview ? <div className="mt-5 flex justify-end gap-2"><Button variant="danger" onClick={() => rejectMutation.mutate()}>Desaprobar</Button><Button onClick={() => approveMutation.mutate()}>Aprobar</Button></div> : null}
+        </Card>
+      ) : null}
     </>
   );
 }
@@ -809,11 +1150,40 @@ export function ClientHistoryPage() {
 }
 
 export function WarehouseProductsPage({ embedded = false }: { embedded?: boolean }) {
-  const { data = [] } = useFallbackQuery(["warehouse-products"], getWarehouseProducts);
+  const [search, setSearch] = useState("");
+  const [stockStatus, setStockStatus] = useState("");
+  const [movement, setMovement] = useState<{ product: WarehouseProduct; type: "in" | "out" } | undefined>();
+  const { data = [], isError, error } = useQuery({
+    queryKey: ["stock-parts", search, stockStatus],
+    queryFn: () => getStockParts({ search, stockStatus }),
+    staleTime: 60_000,
+  });
   return (
     <>
-      {!embedded ? <PageHeader title="Productos" description="Productos registrados por Jefe de Bodega antes de inventario oficial." actions={<Link to="/warehouse/products/new"><Button icon={<Plus className="h-4 w-4" />}>Registrar producto</Button></Link>} /> : null}
-      <div className={embedded ? "mt-5" : ""}><InventoryProductTable products={data} /></div>
+      {!embedded ? <PageHeader title="Stock operativo" description="Cantidades reales disponibles y movimientos de repuestos." actions={<Link to="/warehouse/stock-submissions"><Button variant="secondary" icon={<Plus className="h-4 w-4" />}>Solicitar reposición</Button></Link>} /> : null}
+      {isError ? <ApiErrorAlert error={error} action="No se pudo cargar el stock" /> : null}
+      <Card className={embedded ? "mt-5 p-4" : "p-4"}>
+        <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+          <input
+            className="rounded-md border border-slate-200 px-3 py-2 text-sm"
+            placeholder="Buscar por nombre, categoría, marca o referencia"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <select className="rounded-md border border-slate-200 px-3 py-2 text-sm" value={stockStatus} onChange={(event) => setStockStatus(event.target.value)}>
+            <option value="">Todos los estados</option>
+            <option value="available">Disponible</option>
+            <option value="low">Bajo stock</option>
+            <option value="out">Agotado</option>
+          </select>
+        </div>
+      </Card>
+      <div className="mt-4"><StockProductsTable products={data} onMovement={(product, type) => setMovement({ product, type })} /></div>
+      <div className="mt-5">
+        <h2 className="mb-3 font-bold text-slate-900">Historial de movimientos</h2>
+        <StockMovementsPanel />
+      </div>
+      <StockMovementModal product={movement?.product} type={movement?.type ?? "in"} onClose={() => setMovement(undefined)} />
     </>
   );
 }
@@ -875,8 +1245,8 @@ export function InventoryProductsPage() {
   const { data = [] } = useFallbackQuery(["inventory-products"], getInventoryProducts);
   return (
     <>
-      <PageHeader title="Inventario oficial" description="Productos aprobados por Jefe de Almacén." />
-      <InventoryProductTable products={data} />
+      <PageHeader title="Catálogo maestro de inventario" description="Repuestos, precios, stock mínimo y estado del catálogo." actions={<Link to="/parts/new"><Button icon={<Plus className="h-4 w-4" />}>Crear repuesto</Button></Link>} />
+      <StockProductsTable products={data} showInventoryActions />
     </>
   );
 }
@@ -886,7 +1256,17 @@ export function InventoryHistoryPage() {
   return (
     <>
       <PageHeader title="Historial de inventario" description="Aprobaciones, rechazos y movimientos de stock." />
-      <StockSubmissionList submissions={data} />
+      <StockMovementTable movements={data} />
+    </>
+  );
+}
+
+function StockMovementsPanel() {
+  const { data = [], isError, error } = useFallbackQuery(["stock-movements"], getStockMovements);
+  return (
+    <>
+      {isError ? <ApiErrorAlert error={error} action="No se pudo cargar el historial de movimientos" /> : null}
+      <StockMovementTable movements={data} />
     </>
   );
 }
@@ -987,9 +1367,9 @@ function RequestsTable({
       <table className="w-full table-fixed text-left text-sm">
         <thead className="bg-slate-50 text-xs uppercase text-slate-500">
           {compact ? (
-            <tr>{["Mecánico", "Orden", "Solicitud", "Acciones"].map((header) => <th key={header} className="break-words px-3 py-3">{header}</th>)}</tr>
+            <tr>{["Mecánico", "Orden", "Solicitud", allowReviewActions ? "Acciones" : ""].filter(Boolean).map((header) => <th key={header} className="break-words px-3 py-3">{header}</th>)}</tr>
           ) : (
-            <tr>{["Fecha", "Mecánico", "Orden", "Cliente", "Vehículo", "Tipo", "Estado", "Acciones"].map((header) => <th key={header} className="break-words px-3 py-3">{header}</th>)}</tr>
+            <tr>{["Fecha", "Mecánico", "Orden", "Cliente", "Vehículo", "Tipo", "Estado", allowReviewActions ? "Acciones" : ""].filter(Boolean).map((header) => <th key={header} className="break-words px-3 py-3">{header}</th>)}</tr>
           )}
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -1011,23 +1391,21 @@ function RequestsTable({
                   <td className="px-3 py-3"><AdditionalRequestStatusBadge status={request.status} /></td>
                 </>
               )}
-              <td className="px-3 py-3">
-                <div className={compact ? "flex gap-2" : "flex flex-col gap-2"}>
-                  {detailPathPrefix ? (
-                    <Link className="w-full" to={`${detailPathPrefix}/${request.id}`}>
-                      <Button variant="secondary" className="min-h-9 w-full px-2 text-xs">Ver</Button>
-                    </Link>
-                  ) : (
-                    <Button variant="secondary" className="min-h-9 w-full px-2 text-xs" onClick={() => setSelected(request)}>Ver</Button>
-                  )}
-                  {allowReviewActions ? (
-                    <>
+              {allowReviewActions ? (
+                <td className="px-3 py-3">
+                  <div className={compact ? "flex gap-2" : "flex flex-col gap-2"}>
+                    {detailPathPrefix ? (
+                      <Link className="w-full" to={`${detailPathPrefix}/${request.id}`}>
+                        <Button variant="secondary" className="min-h-9 w-full px-2 text-xs">Ver</Button>
+                      </Link>
+                    ) : (
+                      <Button variant="secondary" className="min-h-9 w-full px-2 text-xs" onClick={() => setSelected(request)}>Ver</Button>
+                    )}
                       <Button variant="secondary" className="min-h-9 w-full px-2 text-xs" disabled={request.status !== "PendingWorkshopChiefApproval"} isLoading={isWorking} onClick={() => approve(request)}>Aprobar</Button>
                       <Button variant="secondary" className="min-h-9 w-full px-2 text-xs" disabled={request.status !== "PendingWorkshopChiefApproval"} isLoading={isWorking} onClick={() => reject(request)}>Denegar</Button>
-                    </>
-                  ) : null}
-                </div>
-              </td>
+                  </div>
+                </td>
+              ) : null}
             </tr>
           ))}
         </tbody>
@@ -1122,6 +1500,46 @@ function SimpleListPage({ title, description, items }: { title: string; descript
         </div>
       </Card>
     </>
+  );
+}
+
+function DiagnosticStatusBadge({ status }: { status: MechanicDiagnostic["status"] }) {
+  const label = status === "Approved" ? "Aprobado" : status === "Rejected" ? "Desaprobado" : "Pendiente";
+  const tone = status === "Approved" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : status === "Rejected" ? "bg-red-50 text-red-700 border-red-200" : "bg-blue-50 text-blue-700 border-blue-200";
+  return <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-bold ${tone}`}>{label}</span>;
+}
+
+function DiagnosticTable({ diagnostics, detailPathPrefix }: { diagnostics: MechanicDiagnostic[]; detailPathPrefix?: string }) {
+  return (
+    <Card className="overflow-hidden">
+      <table className="w-full text-left text-sm">
+        <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+          <tr>
+            <th className="px-4 py-3">Fecha</th>
+            <th className="px-4 py-3">Orden</th>
+            <th className="px-4 py-3">Cliente</th>
+            <th className="px-4 py-3">Vehículo</th>
+            <th className="px-4 py-3">Mecánico</th>
+            <th className="px-4 py-3">Estado</th>
+            <th className="px-4 py-3">Acciones</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {diagnostics.length === 0 ? <tr><td className="px-4 py-5 font-semibold text-slate-500" colSpan={7}>No hay diagnósticos para mostrar.</td></tr> : null}
+          {diagnostics.map((diagnostic) => (
+            <tr key={diagnostic.id}>
+              <td className="px-4 py-3 font-semibold text-slate-700">{formatDateTime(diagnostic.submittedAt)}</td>
+              <td className="px-4 py-3 font-bold text-slate-900">{diagnostic.orderCode}</td>
+              <td className="px-4 py-3">{diagnostic.customer}</td>
+              <td className="px-4 py-3">{diagnostic.vehicle}</td>
+              <td className="px-4 py-3">{diagnostic.mechanic}</td>
+              <td className="px-4 py-3"><DiagnosticStatusBadge status={diagnostic.status} /></td>
+              <td className="px-4 py-3">{detailPathPrefix ? <Link to={`${detailPathPrefix}/${diagnostic.id}`}><Button variant="secondary">Ver</Button></Link> : <Link to={`/service-orders/${diagnostic.serviceOrderId}`}><Button variant="secondary">Ver orden</Button></Link>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
   );
 }
 

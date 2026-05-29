@@ -59,6 +59,11 @@ export type AdditionalRequestStatus =
   | "ApprovedByClient"
   | "AddedToOrder";
 
+export type MechanicDiagnosticStatus =
+  | "PendingWorkshopChiefApproval"
+  | "Approved"
+  | "Rejected";
+
 export type OrderServiceStatus =
   | "Pending"
   | "Approved"
@@ -92,6 +97,7 @@ export type WorkshopServiceStatus = "Active" | "Inactive";
 
 export type OrderServiceItem = {
   id: string;
+  serviceOrderId?: string;
   name: string;
   status: OrderServiceStatus;
   parts: string[];
@@ -122,6 +128,22 @@ export type AdditionalRequest = {
   decisionHistory: string[];
 };
 
+export type MechanicDiagnostic = {
+  id: string;
+  serviceOrderId: string;
+  orderCode: string;
+  customer: string;
+  vehicle: string;
+  mechanicPersonId: string;
+  mechanic: string;
+  status: MechanicDiagnosticStatus;
+  findings: string;
+  recommendedWork: string;
+  workshopChiefComment?: string;
+  submittedAt: string;
+  reviewedAt?: string;
+};
+
 export type WarehouseProduct = {
   id: string;
   name: string;
@@ -136,6 +158,27 @@ export type WarehouseProduct = {
   description: string;
   minimumStock: number;
   observations?: string;
+};
+
+export type StockMovement = {
+  id: string;
+  partId: string;
+  partCode: string;
+  partName: string;
+  quantityChange: number;
+  resultingStock: number;
+  unitPrice: number;
+  action: string;
+  comment?: string;
+  createdAt: string;
+};
+
+export type StockDashboard = {
+  totalParts: number;
+  availableParts: number;
+  lowStockParts: number;
+  outOfStockParts: number;
+  recentMovements: StockMovement[];
 };
 
 export type StockSubmission = WarehouseProduct & {

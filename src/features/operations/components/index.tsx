@@ -1,6 +1,7 @@
 import { CheckCircle2, PackagePlus, Send, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Badge } from "../../../shared/components/ui/Badge";
@@ -8,6 +9,7 @@ import { Button } from "../../../shared/components/ui/Button";
 import { Card } from "../../../shared/components/ui/Card";
 import { Drawer } from "../../../shared/components/ui/Drawer";
 import { Modal } from "../../../shared/components/ui/Modal";
+import { ApiErrorAlert } from "../../../shared/components/feedback/ApiErrorAlert";
 import { FormInput } from "../../../shared/components/forms/FormInput";
 import { FormSelect } from "../../../shared/components/forms/FormSelect";
 import { FormTextarea } from "../../../shared/components/forms/FormTextarea";
@@ -28,7 +30,19 @@ import {
   WorkshopServicePart,
   WorkshopServiceStatus,
 } from "../../../shared/types/domain";
-import { calculateProductSalePrice, calculateWorkshopServicePrice } from "../services/operationsService";
+import {
+  calculateProductSalePrice,
+  calculateWorkshopServicePrice,
+  createStockSubmission,
+  createAdditionalRequest,
+  getPartBrandsForStock,
+  getPartCategoriesForStock,
+  getSuppliersForStock,
+  getAvailableWorkshopParts,
+  getWorkshopServices,
+  sendStockSubmissionForReview,
+} from "../services/operationsService";
+import { serviceOrdersService } from "../../service-orders/services/serviceOrdersService";
 
 const statusTone = {
   Draft: "slate",
@@ -127,13 +141,25 @@ export function WorkshopServiceStatusBadge({ status }: { status: WorkshopService
 
 const mechanicRequestSchema = z.object({
   orderId: z.string().min(1),
-  suggestedService: z.string().min(1),
+  suggestedService: z.string().optional(),
+  workshopServiceId: z.string().optional(),
+  partId: z.string().optional(),
   requestType: z.enum(["Service", "Part"]),
   problemDescription: z.string().min(1),
   technicalJustification: z.string().min(1),
   suggestedPart: z.string().optional(),
   quantity: z.coerce.number().optional(),
   observations: z.string().optional(),
+}).superRefine((value, context) => {
+  if (value.requestType === "Service" && !value.workshopServiceId) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["workshopServiceId"], message: "Selecciona un servicio." });
+  }
+  if (value.requestType === "Part" && !value.partId) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["partId"], message: "Selecciona un repuesto." });
+  }
+  if (value.requestType === "Part" && !value.quantity) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["quantity"], message: "Indica la cantidad." });
+  }
 });
 
 type MechanicRequestForm = z.infer<typeof mechanicRequestSchema>;
@@ -147,30 +173,70 @@ export function MechanicRequestModal({
   onClose: () => void;
   defaultOrderId?: string;
 }) {
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<MechanicRequestForm>({
+  const queryClient = useQueryClient();
+  const [orderSearch, setOrderSearch] = useState("");
+  const ordersQuery = useQuery({ queryKey: ["mechanic-request-orders"], queryFn: () => serviceOrdersService.list({ pageNumber: 1, pageSize: 500 }), enabled: open });
+  const servicesQuery = useQuery({ queryKey: ["mechanic-request-workshop-services"], queryFn: getWorkshopServices, enabled: open });
+  const partsQuery = useQuery({ queryKey: ["mechanic-request-parts"], queryFn: getAvailableWorkshopParts, enabled: open });
+  const { register, handleSubmit, watch, reset, formState: { errors } } = useForm<MechanicRequestForm>({
     resolver: zodResolver(mechanicRequestSchema),
     defaultValues: { orderId: defaultOrderId, requestType: "Service" },
   });
   const requestType = watch("requestType");
+  const orders = ordersQuery.data?.data ?? [];
+  const filteredOrders = orders.filter((order) =>
+    [order.code, order.customer, order.vehicle].join(" ").toLowerCase().includes(orderSearch.toLowerCase()),
+  );
+  const requestMutation = useMutation({
+    mutationFn: createAdditionalRequest,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["mechanic-requests"] });
+      reset({ orderId: defaultOrderId, requestType: "Service" });
+      onClose();
+    },
+  });
+
+  useEffect(() => {
+    if (open) reset({ orderId: defaultOrderId, requestType: "Service" });
+  }, [defaultOrderId, open, reset]);
 
   return (
     <Modal open={open} title="Solicitar servicio o repuesto adicional" onClose={onClose}>
-      <form className="grid gap-4" onSubmit={handleSubmit(() => onClose())}>
-        <FormInput label="Orden relacionada" error={errors.orderId} registration={register("orderId")} />
-        <FormInput label="Servicio sugerido" error={errors.suggestedService} registration={register("suggestedService")} />
+      <form className="grid gap-4" onSubmit={handleSubmit((values) => requestMutation.mutate(values))}>
+        {requestMutation.error ? <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">No se pudo crear la solicitud.</p> : null}
+        <FormInput label="Buscar orden" value={orderSearch} onChange={(event) => setOrderSearch(event.target.value)} placeholder="Ej: OT-2026-0001" />
+        <FormSelect
+          label="Orden relacionada"
+          error={errors.orderId}
+          registration={register("orderId")}
+          options={filteredOrders.map((order) => ({ label: `${order.code} · ${order.customer} · ${order.vehicle}`, value: order.id }))}
+        />
         <FormSelect label="Tipo de solicitud" options={[{ label: "Servicio", value: "Service" }, { label: "Repuesto", value: "Part" }]} registration={register("requestType")} />
+        {requestType === "Service" ? (
+          <FormSelect
+            label="Servicio solicitado"
+            error={errors.workshopServiceId}
+            registration={register("workshopServiceId")}
+            options={(servicesQuery.data ?? []).map((service) => ({ label: `${service.name} · ${formatCurrency(service.finalPrice)}`, value: service.id }))}
+          />
+        ) : null}
         <FormTextarea label="Descripción del problema encontrado" error={errors.problemDescription} registration={register("problemDescription")} />
         <FormTextarea label="Justificación técnica" error={errors.technicalJustification} registration={register("technicalJustification")} />
         {requestType === "Part" ? (
           <div className="grid gap-4 md:grid-cols-2">
-            <FormInput label="Repuesto sugerido opcional" registration={register("suggestedPart")} />
-            <FormInput label="Cantidad opcional" type="number" min={0} registration={register("quantity")} />
+            <FormSelect
+              label="Repuesto solicitado"
+              error={errors.partId}
+              registration={register("partId")}
+              options={(partsQuery.data ?? []).map((part) => ({ label: `${part.name} · Stock ${part.quantity}`, value: part.id }))}
+            />
+            <FormInput label="Cantidad" error={errors.quantity} type="number" min={1} registration={register("quantity")} />
           </div>
         ) : null}
         <FormTextarea label="Observaciones" registration={register("observations")} />
         <div className="flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button type="submit" icon={<Send className="h-4 w-4" />}>Enviar al jefe de taller</Button>
+          <Button type="submit" isLoading={requestMutation.isPending} icon={<Send className="h-4 w-4" />}>Enviar al jefe de taller</Button>
         </div>
       </form>
     </Modal>
@@ -549,30 +615,101 @@ export function ProductPriceCalculator({ supplierPrice, profitPercentage }: { su
 }
 
 export function StockSubmissionForm({ product }: { product?: WarehouseProduct }) {
-  const [supplierPrice, setSupplierPrice] = useState(product?.supplierPrice ?? 60000);
-  const [profit, setProfit] = useState(product?.profitPercentage ?? 30);
+  const queryClient = useQueryClient();
+  const suppliersQuery = useQuery({ queryKey: ["stock-suppliers"], queryFn: getSuppliersForStock });
+  const categoriesQuery = useQuery({ queryKey: ["stock-categories"], queryFn: getPartCategoriesForStock });
+  const brandsQuery = useQuery({ queryKey: ["stock-brands"], queryFn: getPartBrandsForStock });
+  const [productName, setProductName] = useState(product?.name ?? "");
+  const [referenceCode, setReferenceCode] = useState(product?.referenceCode ?? "");
+  const [supplierId, setSupplierId] = useState("");
+  const [supplierPrice, setSupplierPrice] = useState(product?.supplierPrice ?? 0);
+  const [profit, setProfit] = useState(product?.profitPercentage ?? 0);
+  const [quantity, setQuantity] = useState(product?.quantity ?? 1);
+  const [minimumStock, setMinimumStock] = useState(product?.minimumStock ?? 0);
+  const [partCategoryId, setPartCategoryId] = useState("");
+  const [partBrandId, setPartBrandId] = useState("");
+  const [description, setDescription] = useState(product?.description ?? "");
+  const [warehouseComment, setWarehouseComment] = useState(product?.observations ?? "");
+  const [createdSubmissionId, setCreatedSubmissionId] = useState<string | null>(null);
+  const createMutation = useMutation({
+    mutationFn: () => createStockSubmission({
+      productName,
+      referenceCode,
+      supplierId,
+      supplierPrice,
+      profitPercentage: profit,
+      quantity,
+      minimumStock,
+      partCategoryId,
+      partBrandId,
+      description,
+      observations: warehouseComment,
+    }),
+    onSuccess: async (submission) => {
+      setCreatedSubmissionId(submission.submissionId);
+      await queryClient.invalidateQueries({ queryKey: ["warehouse-submissions"] });
+    },
+  });
+  const sendMutation = useMutation({
+    mutationFn: (submissionId: string) => sendStockSubmissionForReview(submissionId),
+    onSuccess: async () => {
+      setCreatedSubmissionId(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["warehouse-submissions"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory-review"] }),
+      ]);
+    },
+  });
+  const canSubmit = productName.trim() && referenceCode.trim() && supplierId && supplierPrice >= 0 && profit >= 0 && quantity > 0 && minimumStock >= 0;
+  const isWorking = createMutation.isPending || sendMutation.isPending;
   return (
     <Card className="p-5">
+      {createMutation.isError ? <ApiErrorAlert error={createMutation.error} action="No se pudo guardar la solicitud de stock" className="mb-4" /> : null}
+      {sendMutation.isError ? <ApiErrorAlert error={sendMutation.error} action="No se pudo enviar la solicitud a inventario" className="mb-4" /> : null}
+      {createdSubmissionId ? <Card className="mb-4 border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">Solicitud guardada como borrador. Puedes enviarla a revisión de inventario.</Card> : null}
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         <div className="grid gap-4 md:grid-cols-2">
-          <FormInput label="Nombre del producto" defaultValue={product?.name ?? "Aceite 20W50"} />
-          <FormInput label="Código de referencia" defaultValue={product?.referenceCode ?? "LUB-20W50"} />
-          <FormInput label="Proveedor" defaultValue={product?.supplier ?? "Lubricantes del Oriente"} />
+          <FormInput label="Nombre del producto" value={productName} onChange={(event) => setProductName(event.target.value)} />
+          <FormInput label="Código de referencia" value={referenceCode} onChange={(event) => setReferenceCode(event.target.value)} />
+          <FormSelect
+            label="Proveedor"
+            value={supplierId}
+            onChange={(event) => setSupplierId(event.target.value)}
+            options={(suppliersQuery.data ?? []).map((supplier) => ({ label: supplier.name, value: supplier.id }))}
+            required
+          />
           <FormInput label="Precio del proveedor" type="number" value={supplierPrice} onChange={(event) => setSupplierPrice(Number(event.target.value))} />
           <FormInput label="Porcentaje de ganancia" type="number" value={profit} onChange={(event) => setProfit(Number(event.target.value))} />
           <FormInput label="Precio de venta" value={calculateProductSalePrice(supplierPrice, profit)} readOnly />
-          <FormInput label="Cantidad" type="number" defaultValue={product?.quantity ?? 12} />
-          <FormInput label="Categoría" defaultValue={product?.category ?? "Lubricantes"} />
-          <FormInput label="Marca" defaultValue={product?.brand ?? "Castrol"} />
-          <FormInput label="Stock mínimo" type="number" defaultValue={product?.minimumStock ?? 6} />
-          <div className="md:col-span-2"><FormTextarea label="Descripción" defaultValue={product?.description ?? "Producto registrado por bodega."} /></div>
-          <div className="md:col-span-2"><FormTextarea label="Observaciones" defaultValue={product?.observations ?? ""} /></div>
+          <FormInput label="Cantidad" type="number" min={1} value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} />
+          <FormSelect
+            label="Categoría"
+            value={partCategoryId}
+            onChange={(event) => setPartCategoryId(event.target.value)}
+            options={(categoriesQuery.data ?? []).map((category) => ({ label: category.name, value: category.id }))}
+          />
+          <FormSelect
+            label="Marca"
+            value={partBrandId}
+            onChange={(event) => setPartBrandId(event.target.value)}
+            options={(brandsQuery.data ?? []).map((brand) => ({ label: brand.name, value: brand.id }))}
+          />
+          <FormInput label="Stock mínimo" type="number" min={0} value={minimumStock} onChange={(event) => setMinimumStock(Number(event.target.value))} />
+          <div className="md:col-span-2"><FormTextarea label="Descripción" value={description} onChange={(event) => setDescription(event.target.value)} /></div>
+          <div className="md:col-span-2"><FormTextarea label="Observaciones" value={warehouseComment} onChange={(event) => setWarehouseComment(event.target.value)} /></div>
         </div>
         <ProductPriceCalculator supplierPrice={supplierPrice} profitPercentage={profit} />
       </div>
       <div className="mt-5 flex justify-end gap-2">
-        <Button variant="secondary">Guardar borrador</Button>
-        <Button icon={<PackagePlus className="h-4 w-4" />}>Enviar stock a revisión</Button>
+        <Button variant="secondary" isLoading={createMutation.isPending} disabled={!canSubmit || isWorking} onClick={() => createMutation.mutate()}>Guardar borrador</Button>
+        <Button icon={<PackagePlus className="h-4 w-4" />} isLoading={sendMutation.isPending} disabled={isWorking || (!createdSubmissionId && !canSubmit)} onClick={async () => {
+          if (createdSubmissionId) {
+            sendMutation.mutate(createdSubmissionId);
+            return;
+          }
+          const submission = await createMutation.mutateAsync();
+          sendMutation.mutate(submission.submissionId);
+        }}>Enviar stock a revisión</Button>
       </div>
     </Card>
   );
