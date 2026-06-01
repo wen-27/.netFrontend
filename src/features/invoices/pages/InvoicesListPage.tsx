@@ -18,7 +18,7 @@ export function InvoicesListPage({ payments = false }: { payments?: boolean }) {
   const table = useTableQueryState();
   const role = useAuth((state) => state.role);
   const navigate = useNavigate();
-  const columns: ColumnDef<Invoice>[] = [
+  const invoiceColumns: ColumnDef<Invoice>[] = [
     { header: "Número", accessorKey: "number" },
     { header: "Cliente", accessorKey: "customer" },
     { header: "Orden", accessorKey: "orderCode" },
@@ -28,6 +28,17 @@ export function InvoicesListPage({ payments = false }: { payments?: boolean }) {
     { header: "Total", cell: ({ row }) => formatCurrency(row.original.total) },
     { header: "Estado de pago", cell: ({ row }) => <Badge tone={getPaymentStatusTone(row.original.paymentStatus)}>{getPaymentStatusLabel(row.original.paymentStatus)}</Badge> },
     { header: "Acciones", cell: ({ row }) => <Button variant="secondary" className="min-h-9 w-full px-2 text-xs leading-tight" icon={<Eye className="h-4 w-4 shrink-0" />} onClick={() => navigate(`/invoices/${row.original.id}`)}>Ver detalle</Button> },
+  ];
+  const paymentColumns: ColumnDef<Invoice>[] = [
+    { header: "Fecha", cell: ({ row }) => formatDate(row.original.date) },
+    { header: "Cliente", cell: ({ row }) => <div><p className="font-semibold text-slate-900">{row.original.customer}</p><p className="text-xs text-slate-500">{row.original.clientDocument || "Sin documento"}</p></div> },
+    { header: "Vehículo", accessorKey: "vehicle" },
+    { header: "Orden/Factura", accessorKey: "orderCode" },
+    { header: "Referencia", accessorKey: "reference" },
+    { header: "Método", accessorKey: "method" },
+    { header: "Monto", cell: ({ row }) => formatCurrency(row.original.amount ?? row.original.subtotal) },
+    { header: "Saldo", cell: ({ row }) => formatCurrency(row.original.balance ?? row.original.taxes) },
+    { header: "Estado", cell: ({ row }) => <Badge tone={getPaymentStatusTone(row.original.paymentStatus)}>{getPaymentStatusLabel(row.original.paymentStatus)}</Badge> },
   ];
   const invoiceQueryFn = () => {
     if (payments) return invoicesService.listPayments(table.params);
@@ -42,7 +53,7 @@ export function InvoicesListPage({ payments = false }: { payments?: boolean }) {
   return (
     <>
       <PageHeader title={payments ? "Pagos" : "Facturación"} description="Facturas, estados de pago, detalle de servicios, repuestos e impuestos." />
-      <DataTable data={query.data?.data ?? []} columns={columns} isLoading={query.isLoading} isError={query.isError} error={query.error} totalCount={query.data?.totalCount ?? 0} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por cliente, fecha, estado o número" showFiltersButton={false} />} />
+      <DataTable data={query.data?.data ?? []} columns={payments ? paymentColumns : invoiceColumns} isLoading={query.isLoading} isError={query.isError} error={query.error} totalCount={query.data?.totalCount ?? 0} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por cliente, fecha, estado o número" showFiltersButton={false} />} />
     </>
   );
 }

@@ -74,6 +74,15 @@ import {
 } from "../features/operations/pages/OperationsPages";
 import { MechanicDiagnosticOrderCreatePage } from "../features/operations/pages/MechanicDiagnosticOrderCreatePage";
 import { MechanicWorkBoardPage } from "../features/operations/pages/MechanicWorkBoardPage";
+import {
+  ReceptionCustomerCreatePage,
+  ReceptionCustomerDetailPage,
+  ReceptionCustomersPage,
+  ReceptionPaymentsPage,
+  ReceptionVehicleCreatePage,
+  ReceptionVehicleDetailPage,
+  ReceptionVehiclesPage,
+} from "../features/reception/pages/ReceptionPages";
 
 function HomeRedirect() {
   const role = useAuth((state) => state.role);
@@ -192,10 +201,13 @@ export function AppRouter() {
           </Route>
 
           <Route element={<RoleGuard allowedRoles={moduleRoles.reception} />}>
-            <Route path="/reception/customers" element={<PersonsListPage />} />
-            <Route path="/reception/vehicles" element={<VehiclesListPage />} />
-            <Route path="/reception/service-orders" element={<ServiceOrdersListPage />} />
-            <Route path="/reception/payments-verification" element={<ReceptionPaymentsVerificationPage />} />
+            <Route path="/reception/customers" element={<ReceptionCustomersPage />} />
+            <Route path="/reception/customers/new" element={<ReceptionCustomerCreatePage />} />
+            <Route path="/reception/customers/:id" element={<ReceptionCustomerDetailPage />} />
+            <Route path="/reception/vehicles" element={<ReceptionVehiclesPage />} />
+            <Route path="/reception/vehicles/new" element={<ReceptionVehicleCreatePage />} />
+            <Route path="/reception/vehicles/:id" element={<ReceptionVehicleDetailPage />} />
+            <Route path="/reception/payments-verification" element={<ReceptionPaymentsPage />} />
             <Route path="/reception/deliveries" element={<ReceptionDeliveriesPage />} />
           </Route>
 

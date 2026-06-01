@@ -630,7 +630,26 @@ export function StockSubmissionForm({ product }: { product?: WarehouseProduct })
   const [partBrandId, setPartBrandId] = useState("");
   const [description, setDescription] = useState(product?.description ?? "");
   const [warehouseComment, setWarehouseComment] = useState(product?.observations ?? "");
-  const [createdSubmissionId, setCreatedSubmissionId] = useState<string | null>(null);
+  const [createdSubmission, setCreatedSubmission] = useState<StockSubmission | null>(null);
+  const [sentSubmission, setSentSubmission] = useState<Pick<StockSubmission, "name" | "referenceCode"> | null>(null);
+  const [failedSubmission, setFailedSubmission] = useState<Pick<StockSubmission, "name" | "referenceCode"> | null>(null);
+  const currentSubmissionSummary = {
+    name: productName.trim() || "Producto sin nombre",
+    referenceCode: referenceCode.trim() || "Sin codigo",
+  };
+  const resetForm = () => {
+    setProductName("");
+    setReferenceCode("");
+    setSupplierId("");
+    setSupplierPrice(0);
+    setProfit(0);
+    setQuantity(1);
+    setMinimumStock(0);
+    setPartCategoryId("");
+    setPartBrandId("");
+    setDescription("");
+    setWarehouseComment("");
+  };
   const createMutation = useMutation({
     mutationFn: () => createStockSubmission({
       productName,
@@ -646,18 +665,34 @@ export function StockSubmissionForm({ product }: { product?: WarehouseProduct })
       observations: warehouseComment,
     }),
     onSuccess: async (submission) => {
-      setCreatedSubmissionId(submission.submissionId);
+      setCreatedSubmission(submission);
+      setSentSubmission(null);
+      setFailedSubmission(null);
       await queryClient.invalidateQueries({ queryKey: ["warehouse-submissions"] });
+    },
+    onError: () => {
+      setSentSubmission(null);
+      setFailedSubmission(currentSubmissionSummary);
     },
   });
   const sendMutation = useMutation({
     mutationFn: (submissionId: string) => sendStockSubmissionForReview(submissionId),
-    onSuccess: async () => {
-      setCreatedSubmissionId(null);
+    onSuccess: async (submission) => {
+      setCreatedSubmission(null);
+      setSentSubmission({
+        name: submission.name || currentSubmissionSummary.name,
+        referenceCode: submission.referenceCode || currentSubmissionSummary.referenceCode,
+      });
+      setFailedSubmission(null);
+      resetForm();
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["warehouse-submissions"] }),
         queryClient.invalidateQueries({ queryKey: ["inventory-review"] }),
       ]);
+    },
+    onError: () => {
+      setSentSubmission(null);
+      setFailedSubmission(createdSubmission ?? currentSubmissionSummary);
     },
   });
   const canSubmit = productName.trim() && referenceCode.trim() && supplierId && supplierPrice >= 0 && profit >= 0 && quantity > 0 && minimumStock >= 0;
@@ -666,7 +701,17 @@ export function StockSubmissionForm({ product }: { product?: WarehouseProduct })
     <Card className="p-5">
       {createMutation.isError ? <ApiErrorAlert error={createMutation.error} action="No se pudo guardar la solicitud de stock" className="mb-4" /> : null}
       {sendMutation.isError ? <ApiErrorAlert error={sendMutation.error} action="No se pudo enviar la solicitud a inventario" className="mb-4" /> : null}
-      {createdSubmissionId ? <Card className="mb-4 border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">Solicitud guardada como borrador. Puedes enviarla a revisión de inventario.</Card> : null}
+      {sentSubmission ? (
+        <Card className="mb-4 border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
+          Solicitud enviada a revision: {sentSubmission.referenceCode} - {sentSubmission.name}.
+        </Card>
+      ) : null}
+      {failedSubmission ? (
+        <Card className="mb-4 border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+          Error al enviar/guardar la solicitud: {failedSubmission.referenceCode} - {failedSubmission.name}.
+        </Card>
+      ) : null}
+      {createdSubmission ? <Card className="mb-4 border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">Solicitud guardada como borrador: {createdSubmission.referenceCode} - {createdSubmission.name}. Puedes enviarla a revision de inventario.</Card> : null}
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         <div className="grid gap-4 md:grid-cols-2">
           <FormInput label="Nombre del producto" value={productName} onChange={(event) => setProductName(event.target.value)} />
@@ -702,9 +747,9 @@ export function StockSubmissionForm({ product }: { product?: WarehouseProduct })
       </div>
       <div className="mt-5 flex justify-end gap-2">
         <Button variant="secondary" isLoading={createMutation.isPending} disabled={!canSubmit || isWorking} onClick={() => createMutation.mutate()}>Guardar borrador</Button>
-        <Button icon={<PackagePlus className="h-4 w-4" />} isLoading={sendMutation.isPending} disabled={isWorking || (!createdSubmissionId && !canSubmit)} onClick={async () => {
-          if (createdSubmissionId) {
-            sendMutation.mutate(createdSubmissionId);
+        <Button icon={<PackagePlus className="h-4 w-4" />} isLoading={sendMutation.isPending} disabled={isWorking || (!createdSubmission && !canSubmit)} onClick={async () => {
+          if (createdSubmission) {
+            sendMutation.mutate(createdSubmission.submissionId);
             return;
           }
           const submission = await createMutation.mutateAsync();

@@ -68,6 +68,7 @@ import {
   getClientPayments,
   getClientPaymentById,
   getPaymentsPendingReceptionVerification,
+  getReceptionApprovedPayments,
   getStockSubmissionById,
   getStockSubmissions,
   getWarehouseProducts,
@@ -79,6 +80,8 @@ import {
   getWorkshopServices,
   createWorkshopService,
   updateWorkshopService,
+  approveStockSubmission,
+  rejectStockSubmission,
   approveRequestByWorkshopChief,
   rejectRequestByWorkshopChief,
   approveMechanicDiagnostic,
@@ -212,39 +215,52 @@ function StockProductsTable({
   products,
   onMovement,
   showInventoryActions = false,
+  footer,
 }: {
   products: WarehouseProduct[];
   onMovement?: (product: WarehouseProduct, type: "in" | "out") => void;
   showInventoryActions?: boolean;
+  footer?: React.ReactNode;
 }) {
+  const hasActions = Boolean(showInventoryActions || onMovement);
   return (
-    <Card className="overflow-x-auto">
-      <table className="w-full min-w-[920px] text-left text-sm">
+    <Card className="overflow-hidden">
+      <table className="w-full table-fixed text-left text-sm">
         <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-          <tr>{["Repuesto", "Referencia", "Categoría", "Marca", "Stock", "Mínimo", "Estado", "Precio", showInventoryActions || onMovement ? "Acciones" : ""].filter(Boolean).map((header) => <th className="px-4 py-3" key={header}>{header}</th>)}</tr>
+          <tr>
+            <th className="w-[18%] px-3 py-3">Repuesto</th>
+            <th className="w-[14%] px-3 py-3">Referencia</th>
+            <th className="w-[15%] px-3 py-3">Categoría</th>
+            <th className="w-[12%] px-3 py-3">Marca</th>
+            <th className="w-[8%] px-3 py-3">Stock</th>
+            <th className="w-[8%] px-3 py-3">Mín.</th>
+            <th className="w-[12%] px-3 py-3">Estado</th>
+            <th className="w-[8%] px-3 py-3">Precio</th>
+            {hasActions ? <th className="w-[12%] px-3 py-3">Acción</th> : null}
+          </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {products.length === 0 ? <tr><td className="px-4 py-5 font-semibold text-slate-500" colSpan={showInventoryActions || onMovement ? 9 : 8}>No hay repuestos para mostrar.</td></tr> : null}
+          {products.length === 0 ? <tr><td className="px-3 py-5 font-semibold text-slate-500" colSpan={hasActions ? 9 : 8}>No hay repuestos para mostrar.</td></tr> : null}
           {products.map((product) => (
             <tr key={product.id}>
-              <td className="px-4 py-3 font-semibold text-slate-900">{product.name}</td>
-              <td className="px-4 py-3">{product.referenceCode}</td>
-              <td className="px-4 py-3">{product.category}</td>
-              <td className="px-4 py-3">{product.brand || "Sin marca"}</td>
-              <td className="px-4 py-3 font-bold">{product.quantity}</td>
-              <td className="px-4 py-3">{product.minimumStock}</td>
-              <td className="px-4 py-3"><StockStatusBadge product={product} /></td>
-              <td className="px-4 py-3">{formatCurrency(product.salePrice)}</td>
-              {onMovement || showInventoryActions ? (
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-2">
+              <td className="break-words px-3 py-3 font-semibold text-slate-900">{product.name}</td>
+              <td className="break-words px-3 py-3">{product.referenceCode}</td>
+              <td className="break-words px-3 py-3">{product.category}</td>
+              <td className="break-words px-3 py-3">{product.brand || "Sin marca"}</td>
+              <td className="px-3 py-3 font-bold">{product.quantity}</td>
+              <td className="px-3 py-3">{product.minimumStock}</td>
+              <td className="px-3 py-3"><StockStatusBadge product={product} /></td>
+              <td className="break-words px-3 py-3">{formatCurrency(product.salePrice)}</td>
+              {hasActions ? (
+                <td className="px-3 py-3">
+                  <div className="flex min-w-[104px] flex-col gap-2">
                     {onMovement ? (
                       <>
-                        <Button variant="secondary" className="min-h-9 px-3 text-xs" icon={<PackagePlus className="h-4 w-4" />} onClick={() => onMovement(product, "in")}>Entrada</Button>
-                        <Button variant="secondary" className="min-h-9 px-3 text-xs" icon={<PackageMinus className="h-4 w-4" />} disabled={product.quantity <= 0} onClick={() => onMovement(product, "out")}>Salida</Button>
+                        <Button variant="secondary" className="h-8 justify-start px-2 text-xs" icon={<PackagePlus className="h-4 w-4 shrink-0" />} onClick={() => onMovement(product, "in")}>Entrada</Button>
+                        <Button variant="secondary" className="h-8 justify-start px-2 text-xs" icon={<PackageMinus className="h-4 w-4 shrink-0" />} disabled={product.quantity <= 0} onClick={() => onMovement(product, "out")}>Salida</Button>
                       </>
                     ) : null}
-                    {showInventoryActions ? <Link to={`/parts/${product.id}/edit`}><Button variant="secondary" className="min-h-9 px-3 text-xs">Editar</Button></Link> : null}
+                    {showInventoryActions ? <Link to={`/parts/${product.id}/edit`}><Button variant="secondary" className="h-8 w-full px-2 text-xs">Editar</Button></Link> : null}
                   </div>
                 </td>
               ) : null}
@@ -252,11 +268,12 @@ function StockProductsTable({
           ))}
         </tbody>
       </table>
+      {footer}
     </Card>
   );
 }
 
-function StockMovementTable({ movements }: { movements: StockMovement[] }) {
+function StockMovementTable({ movements, footer }: { movements: StockMovement[]; footer?: React.ReactNode }) {
   return (
     <Card className="overflow-x-auto">
       <table className="w-full min-w-[820px] text-left text-sm">
@@ -278,6 +295,7 @@ function StockMovementTable({ movements }: { movements: StockMovement[] }) {
           ))}
         </tbody>
       </table>
+      {footer}
     </Card>
   );
 }
@@ -383,22 +401,22 @@ export function InventoryManagerDashboardPage() {
   const { data: movements = [] } = useFallbackQuery(["inventory-history"], getInventoryHistory);
   return (
     <>
-      <PageHeader title="Dashboard Jefe de Inventario" description="Catálogo maestro, precios, stock mínimo y revisión de stock." actions={<Link to="/parts/new"><Button icon={<Plus className="h-4 w-4" />}>Crear repuesto</Button></Link>} />
+      <PageHeader title="Dashboard Jefe de Inventario" description="Catálogo maestro, precios, stock mínimo y revisión de stock." />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Solicitudes pendientes" value={String(review.length)} tone="amber" icon={PackageSearch} />
         <MetricCard label="Repuestos en catálogo" value={String(products.length)} tone="blue" icon={Package} />
         <MetricCard label="Bajo stock" value={String(products.filter((item) => item.quantity > 0 && item.quantity <= item.minimumStock).length)} tone="amber" icon={AlertTriangle} />
         <MetricCard label="Movimientos registrados" value={String(movements.length)} tone="green" icon={History} />
       </div>
-      <div className="mt-5 grid gap-5 xl:grid-cols-[1fr_1fr]">
-        <div>
+      <div className="mt-5 space-y-5">
+        <section>
           <h2 className="mb-3 font-bold text-slate-900">Revisión pendiente de stock</h2>
           <InventoryReviewPage embedded />
-        </div>
-        <div>
+        </section>
+        <section>
           <h2 className="mb-3 font-bold text-slate-900">Catálogo reciente</h2>
           <StockProductsTable products={products.slice(0, 8)} showInventoryActions />
-        </div>
+        </section>
       </div>
     </>
   );
@@ -1152,12 +1170,16 @@ export function ClientHistoryPage() {
 export function WarehouseProductsPage({ embedded = false }: { embedded?: boolean }) {
   const [search, setSearch] = useState("");
   const [stockStatus, setStockStatus] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
   const [movement, setMovement] = useState<{ product: WarehouseProduct; type: "in" | "out" } | undefined>();
   const { data = [], isError, error } = useQuery({
     queryKey: ["stock-parts", search, stockStatus],
     queryFn: () => getStockParts({ search, stockStatus }),
     staleTime: 60_000,
   });
+  useEffect(() => setPage(1), [search, stockStatus]);
+  const pagedProducts = useMemo(() => data.slice((page - 1) * pageSize, page * pageSize), [data, page]);
   return (
     <>
       {!embedded ? <PageHeader title="Stock operativo" description="Cantidades reales disponibles y movimientos de repuestos." actions={<Link to="/warehouse/stock-submissions"><Button variant="secondary" icon={<Plus className="h-4 w-4" />}>Solicitar reposición</Button></Link>} /> : null}
@@ -1178,7 +1200,13 @@ export function WarehouseProductsPage({ embedded = false }: { embedded?: boolean
           </select>
         </div>
       </Card>
-      <div className="mt-4"><StockProductsTable products={data} onMovement={(product, type) => setMovement({ product, type })} /></div>
+      <div className="mt-4">
+        <StockProductsTable
+          products={pagedProducts}
+          onMovement={(product, type) => setMovement({ product, type })}
+          footer={<TablePagination page={page} pageSize={pageSize} totalCount={data.length} onPageChange={setPage} />}
+        />
+      </div>
       <div className="mt-5">
         <h2 className="mb-3 font-bold text-slate-900">Historial de movimientos</h2>
         <StockMovementsPanel />
@@ -1220,12 +1248,11 @@ export function WarehouseStockSubmissionDetailPage() {
 
 export function InventoryReviewPage({ embedded = false }: { embedded?: boolean }) {
   const { data = [] } = useFallbackQuery(["inventory-review"], getInventoryReviewRequests);
-  const [selected, setSelected] = useState<StockSubmission | undefined>();
+  const navigate = useNavigate();
   return (
     <>
       {!embedded ? <PageHeader title="Revisión de stock" description="Solicitudes de stock pendientes por Jefe de Almacén." /> : null}
-      <StockReviewTable submissions={data} onSelect={setSelected} />
-      <StockSubmissionReviewDrawer open={Boolean(selected)} submission={selected} onClose={() => setSelected(undefined)} />
+      <StockReviewTable submissions={data} onSelect={(submission) => navigate(`/inventory/review/${submission.submissionId}`)} />
     </>
   );
 }
@@ -1233,30 +1260,161 @@ export function InventoryReviewPage({ embedded = false }: { embedded?: boolean }
 export function InventoryReviewDetailPage() {
   const { id = "stk-1" } = useParams();
   const { data } = useFallbackQuery(["inventory-review-detail", id], () => getInventoryReviewRequestById(id));
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [comment, setComment] = useState("");
+  const approveMutation = useMutation({
+    mutationFn: () => approveStockSubmission(id, comment.trim() || "Aprobado por jefe de inventario."),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["inventory-review"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory-products"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory-history"] }),
+        queryClient.invalidateQueries({ queryKey: ["warehouse-submissions"] }),
+      ]);
+      navigate("/inventory/review");
+    },
+  });
+  const rejectMutation = useMutation({
+    mutationFn: () => rejectStockSubmission(id, comment.trim()),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["inventory-review"] }),
+        queryClient.invalidateQueries({ queryKey: ["warehouse-submissions"] }),
+      ]);
+      navigate("/inventory/review");
+    },
+  });
+  const isWorking = approveMutation.isPending || rejectMutation.isPending;
+  const mutationError = approveMutation.error ?? rejectMutation.error;
   return (
     <>
-      <PageHeader title="Detalle revisión de stock" description="Aprobar o rechazar solicitud de bodega." />
+      <PageHeader
+        title="Detalle revisión de stock"
+        description="Aprobar o rechazar solicitud de bodega."
+        actions={<Link to="/inventory/review"><Button variant="secondary" icon={<ArrowLeft className="h-4 w-4" />}>Regresar</Button></Link>}
+      />
       {data ? <StockSubmissionCard submission={data} /> : null}
+      {mutationError ? <ApiErrorAlert error={mutationError} action="No se pudo procesar la revisión de stock" className="mt-4" /> : null}
+      {data ? (
+        <Card className="mt-4 p-5">
+          <label className="block text-sm font-semibold text-slate-700">
+            Comentario de revisión
+            <textarea
+              className="mt-1 min-h-24 w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+              placeholder="Escribe una observación para aprobar o el motivo si vas a rechazar."
+            />
+          </label>
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <Button variant="secondary" isLoading={rejectMutation.isPending} disabled={isWorking || !comment.trim()} onClick={() => rejectMutation.mutate()}>Rechazar</Button>
+            <Button isLoading={approveMutation.isPending} disabled={isWorking} onClick={() => approveMutation.mutate()}>Aceptar</Button>
+          </div>
+        </Card>
+      ) : null}
     </>
   );
 }
 
 export function InventoryProductsPage() {
   const { data = [] } = useFallbackQuery(["inventory-products"], getInventoryProducts);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
+  const filteredProducts = data.filter((product) => {
+    const term = search.trim().toLowerCase();
+    if (!term) return true;
+    return [
+      product.category,
+      product.name,
+      product.brand,
+      product.referenceCode,
+    ].filter(Boolean).some((value) => String(value).toLowerCase().includes(term));
+  });
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pagedProducts = filteredProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   return (
     <>
-      <PageHeader title="Catálogo maestro de inventario" description="Repuestos, precios, stock mínimo y estado del catálogo." actions={<Link to="/parts/new"><Button icon={<Plus className="h-4 w-4" />}>Crear repuesto</Button></Link>} />
-      <StockProductsTable products={data} showInventoryActions />
+      <PageHeader title="Catálogo maestro de inventario" description="Repuestos aprobados desde stock, precios, stock mínimo y estado del catálogo." />
+      <Card className="mb-4 p-4">
+        <input
+          className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+          placeholder="Buscar por categoría, repuesto, marca o referencia"
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setPage(1);
+          }}
+        />
+      </Card>
+      <StockProductsTable
+        products={pagedProducts}
+        showInventoryActions
+        footer={<TablePagination page={currentPage} pageSize={pageSize} totalCount={filteredProducts.length} onPageChange={setPage} />}
+      />
     </>
   );
 }
 
 export function InventoryHistoryPage() {
   const { data = [] } = useFallbackQuery(["inventory-history"], getInventoryHistory);
+  const [partSearch, setPartSearch] = useState("");
+  const [dateSearch, setDateSearch] = useState("");
+  const [actionSearch, setActionSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
+  const filteredMovements = data.filter((movement) => {
+    const partTerm = partSearch.trim().toLowerCase();
+    const dateTerm = dateSearch.trim().toLowerCase();
+    const actionTerm = actionSearch.trim().toLowerCase();
+    const partMatches = !partTerm || [movement.partName, movement.partCode].some((value) => String(value).toLowerCase().includes(partTerm));
+    const dateMatches = !dateTerm || [movement.createdAt, formatDateTime(movement.createdAt)].some((value) => String(value).toLowerCase().includes(dateTerm));
+    const actionMatches = !actionTerm || movement.action.toLowerCase().includes(actionTerm);
+    return partMatches && dateMatches && actionMatches;
+  });
+  const totalPages = Math.max(1, Math.ceil(filteredMovements.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pagedMovements = filteredMovements.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   return (
     <>
       <PageHeader title="Historial de inventario" description="Aprobaciones, rechazos y movimientos de stock." />
-      <StockMovementTable movements={data} />
+      <Card className="mb-4 p-4">
+        <div className="grid gap-3 md:grid-cols-3">
+          <input
+            className="rounded-md border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            placeholder="Buscar por repuesto o código"
+            value={partSearch}
+            onChange={(event) => {
+              setPartSearch(event.target.value);
+              setPage(1);
+            }}
+          />
+          <input
+            className="rounded-md border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            placeholder="Buscar por fecha"
+            value={dateSearch}
+            onChange={(event) => {
+              setDateSearch(event.target.value);
+              setPage(1);
+            }}
+          />
+          <input
+            className="rounded-md border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            placeholder="Buscar por acción"
+            value={actionSearch}
+            onChange={(event) => {
+              setActionSearch(event.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
+      </Card>
+      <StockMovementTable
+        movements={pagedMovements}
+        footer={<TablePagination page={currentPage} pageSize={pageSize} totalCount={filteredMovements.length} onPageChange={setPage} />}
+      />
     </>
   );
 }
@@ -1284,8 +1442,17 @@ export function ReceptionPaymentsVerificationPage() {
 }
 
 export function ReceptionDeliveriesPage() {
-  const { data = [] } = useFallbackQuery(["payments-verification"], getPaymentsPendingReceptionVerification);
-  return <SimpleListPage title="Entregas" description="Vehículos listos para entrega tras pago verificado." items={data.filter((payment) => payment.status === "Approved").map((payment) => `${payment.orderCode} · ${payment.customer} · Entrega ${payment.deliveryDate ?? "por confirmar"}`)} />;
+  const { data = [], isError, error } = useFallbackQuery(["reception-deliveries"], getReceptionApprovedPayments);
+  return (
+    <>
+      {isError ? <ApiErrorAlert error={error} action="No se pudieron cargar las entregas" /> : null}
+      <SimpleListPage
+        title="Entregas"
+        description="Vehículos listos para entrega tras pago verificado."
+        items={data.map((payment) => `${payment.orderCode} · ${payment.customer} · Entrega ${payment.deliveryDate ?? "por confirmar"}`)}
+      />
+    </>
+  );
 }
 
 function RequestsTable({
@@ -1439,23 +1606,54 @@ function RequestDetail({ request }: { request: AdditionalRequest }) {
 }
 
 function StockReviewTable({ submissions, onSelect }: { submissions: StockSubmission[]; onSelect: (submission: StockSubmission) => void }) {
+  const [search, setSearch] = useState("");
+  const filteredSubmissions = submissions.filter((submission) => {
+    const term = search.trim().toLowerCase();
+    if (!term) return true;
+    return [
+      submission.submittedAt,
+      formatDateTime(submission.submittedAt),
+      submission.name,
+      submission.referenceCode,
+      submission.supplier,
+    ].filter(Boolean).some((value) => String(value).toLowerCase().includes(term));
+  });
+
   return (
-    <Card className="overflow-x-auto">
-      <table className="w-full min-w-[980px] text-left text-sm">
-        <thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr>{["Fecha", "Jefe de bodega", "Producto", "Código referencia", "Proveedor", "Cantidad", "Precio proveedor", "Precio venta", "Estado", "Acciones"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}</tr></thead>
+    <Card className="overflow-hidden">
+      <div className="border-b border-slate-200 p-4">
+        <input
+          className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+          placeholder="Buscar por fecha, producto, código de referencia o proveedor"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+      </div>
+      <table className="w-full table-fixed text-left text-sm">
+        <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+          <tr>
+            <th className="w-[12%] px-3 py-3">Fecha</th>
+            <th className="w-[18%] px-3 py-3">Producto</th>
+            <th className="w-[14%] px-3 py-3">Código</th>
+            <th className="w-[16%] px-3 py-3">Proveedor</th>
+            <th className="w-[9%] px-3 py-3">Cant.</th>
+            <th className="w-[12%] px-3 py-3">Precio</th>
+            <th className="w-[11%] px-3 py-3">Estado</th>
+            <th className="w-[8%] px-3 py-3">Acción</th>
+          </tr>
+        </thead>
         <tbody className="divide-y divide-slate-100">
-          {submissions.map((submission) => (
+          {filteredSubmissions.length === 0 ? <tr><td className="px-3 py-5 font-semibold text-slate-500" colSpan={8}>No hay solicitudes de stock para mostrar.</td></tr> : null}
+          {filteredSubmissions.map((submission) => (
             <tr key={submission.submissionId}>
-              <td className="px-4 py-3">{submission.submittedAt}</td>
-              <td className="px-4 py-3">{submission.warehouseChief}</td>
-              <td className="px-4 py-3">{submission.name}</td>
-              <td className="px-4 py-3">{submission.referenceCode}</td>
-              <td className="px-4 py-3">{submission.supplier}</td>
-              <td className="px-4 py-3">{submission.quantity}</td>
-              <td className="px-4 py-3">{formatCurrency(submission.supplierPrice)}</td>
-              <td className="px-4 py-3">{formatCurrency(submission.salePrice)}</td>
-              <td className="px-4 py-3"><StockSubmissionStatusBadge status={submission.status} /></td>
-              <td className="px-4 py-3"><Button variant="secondary" onClick={() => onSelect(submission)}>Ver detalle</Button></td>
+              <td className="break-words px-3 py-3">{formatDateTime(submission.submittedAt)}</td>
+              <td className="break-words px-3 py-3 font-semibold text-slate-900">{submission.name}</td>
+              <td className="break-words px-3 py-3">{submission.referenceCode}</td>
+              <td className="break-words px-3 py-3">{submission.supplier}</td>
+              <td className="px-3 py-3">{submission.quantity}</td>
+              <td className="break-words px-3 py-3">{formatCurrency(submission.salePrice)}</td>
+              <td className="px-3 py-3"><StockSubmissionStatusBadge status={submission.status} /></td>
+              <td className="px-3 py-3"><Button variant="secondary" className="min-h-9 px-2 text-xs" onClick={() => onSelect(submission)}>Ver</Button></td>
             </tr>
           ))}
         </tbody>

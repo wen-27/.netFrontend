@@ -17,6 +17,22 @@ type ApiInvoice = Partial<Invoice> & {
   paymentStatus?: string | null;
 };
 
+type ApiReceptionPayment = {
+  id?: number | string;
+  invoiceId?: number | string;
+  serviceOrderId?: number | string;
+  customer?: string | null;
+  clientDocument?: string | null;
+  vehicle?: string | null;
+  amount?: number | string | null;
+  total?: number | string | null;
+  balance?: number | string | null;
+  method?: string | null;
+  status?: string | null;
+  date?: string | null;
+  reference?: string | null;
+};
+
 function toOrderCode(id?: number | string | null) {
   return id ? `OT-${new Date().getFullYear()}-${String(id).padStart(4, "0")}` : "Orden sin número";
 }
@@ -44,6 +60,33 @@ async function getMappedInvoices(endpoint: string, params: QueryParams): Promise
   };
 }
 
+async function getMappedPayments(params: QueryParams): Promise<PaginatedResponse<Invoice>> {
+  const response = await apiClient.get<ApiReceptionPayment[]>("/api/reception/payments", { params: toSearchParams(params) });
+  const page = Math.max(1, Number(params.pageNumber ?? 1));
+  const pageSize = Math.max(1, Number(params.pageSize ?? 10));
+  const data = response.data.map((payment) => ({
+    id: String(payment.id ?? ""),
+    number: String(payment.reference ?? `PAGO-${payment.id ?? ""}`),
+    customer: String(payment.customer ?? "Cliente"),
+    orderCode: `OT-${payment.serviceOrderId ?? ""} / FV-${payment.invoiceId ?? ""}`,
+    date: String(payment.date ?? ""),
+    subtotal: Number(payment.amount ?? 0),
+    taxes: Number(payment.balance ?? 0),
+    total: Number(payment.total ?? 0),
+    paymentStatus: String(payment.status ?? "PendingPayment"),
+    amount: Number(payment.amount ?? 0),
+    balance: Number(payment.balance ?? 0),
+    method: String(payment.method ?? "Sin método"),
+    vehicle: String(payment.vehicle ?? "Sin vehículo"),
+    clientDocument: String(payment.clientDocument ?? ""),
+    reference: String(payment.reference ?? ""),
+  }));
+  return {
+    data: data.slice((page - 1) * pageSize, page * pageSize),
+    totalCount: getTotalCount(response) || data.length,
+  };
+}
+
 export const invoicesService = {
   list: (params: QueryParams) => getPaginated<Invoice>("/api/invoices", params),
   listClient: (params: QueryParams) => getMappedInvoices("/api/client/invoices", params),
@@ -54,7 +97,7 @@ export const invoicesService = {
   },
   create: (payload: { serviceOrderId: number; invoiceStatusId: number }) => apiClient.post("/api/invoices", payload),
   listDetails: (params: QueryParams) => getPaginated("/api/invoicedetails", params, []),
-  listPayments: (params: QueryParams) => getPaginated<Invoice>("/api/payments", params),
+  listPayments: (params: QueryParams) => getMappedPayments(params),
   registerPayment: (payload: { invoiceId: number; paymentMethodId: number; amount: number; cardLastFourDigits?: string | null; cardHolderName?: string | null; cardBrand?: string | null }) =>
     apiClient.post("/api/payments", payload),
   registerPaymentCard: (payload: { paymentId: number; cardTypeId: number; lastFourDigits: string; cardHolder: string; authorizationCode: string }) =>

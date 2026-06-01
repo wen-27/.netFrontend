@@ -7,6 +7,8 @@ import { ApiErrorAlert } from "../../../shared/components/feedback/ApiErrorAlert
 import { PageHeader } from "../../../shared/components/layout/PageHeader";
 import { Button } from "../../../shared/components/ui/Button";
 import { Card } from "../../../shared/components/ui/Card";
+import { useAuth } from "../../../shared/hooks/useAuth";
+import { receptionService } from "../../reception/services/receptionService";
 import { serviceOrdersService } from "../services/serviceOrdersService";
 
 type ApiPerson = {
@@ -31,6 +33,7 @@ type ApiPerson = {
 type ApiVehicle = {
   id?: number;
   Id?: number;
+  ownerPersonId?: number | null;
   vin?: string;
   VIN?: string;
   year?: number;
@@ -108,29 +111,62 @@ function vehicleName(vehicle: ApiVehicle) {
 
 export function ServiceOrderCreatePage() {
   const navigate = useNavigate();
+  const role = useAuth((state) => state.role);
+  const isReceptionist = role === "Receptionist";
+  const basePath = isReceptionist ? "/reception/service-orders" : "/service-orders";
   const [clientId, setClientId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   const [vehicleWarning, setVehicleWarning] = useState("");
 
+  const receptionCustomersQuery = useQuery({
+    queryKey: ["reception-order-customers"],
+    queryFn: () => receptionService.customers({ pageNumber: 1, pageSize: 500 }),
+    enabled: isReceptionist,
+  });
+  const receptionVehiclesQuery = useQuery({
+    queryKey: ["reception-order-vehicles"],
+    queryFn: () => receptionService.vehicles({ pageNumber: 1, pageSize: 1000 }),
+    enabled: isReceptionist,
+  });
   const personsQuery = useQuery({
     queryKey: ["empty-order-persons"],
     queryFn: () => getPaginated<ApiPerson>("/api/persons", { pageNumber: 1, pageSize: 200 }),
+    enabled: !isReceptionist,
   });
   const vehiclesQuery = useQuery({
     queryKey: ["empty-order-vehicles"],
     queryFn: () => getPaginated<ApiVehicle>("/api/vehicles", { pageNumber: 1, pageSize: 500 }),
+    enabled: !isReceptionist,
   });
   const ownerHistoryQuery = useQuery({
     queryKey: ["empty-order-owner-history"],
     queryFn: () => getPaginated<ApiOwnerHistory>("/api/vehicleownerhistory", { pageNumber: 1, pageSize: 500 }),
+    enabled: !isReceptionist,
   });
   const serviceOrdersQuery = useQuery({
     queryKey: ["empty-order-service-orders"],
     queryFn: () => getPaginated<ApiServiceOrder>("/api/serviceorders", { pageNumber: 1, pageSize: 1000 }),
   });
 
-  const people = personsQuery.data?.data ?? [];
-  const vehicles = vehiclesQuery.data?.data ?? [];
+  const people: ApiPerson[] = isReceptionist
+    ? (receptionCustomersQuery.data?.data ?? []).map((person) => ({
+        id: Number(person.id),
+        firstNames: person.fullName,
+        documentNumber: person.documentNumber,
+      }))
+    : personsQuery.data?.data ?? [];
+  const vehicles: ApiVehicle[] = isReceptionist
+    ? (receptionVehiclesQuery.data?.data ?? []).map((vehicle) => ({
+        id: Number(vehicle.id),
+        ownerPersonId: vehicle.currentOwnerId ? Number(vehicle.currentOwnerId) : null,
+        vin: vehicle.vin,
+        brand: vehicle.brand,
+        model: vehicle.model,
+        year: vehicle.year,
+        mileage: vehicle.mileage,
+        isActive: vehicle.isActive,
+      }))
+    : vehiclesQuery.data?.data ?? [];
   const ownerHistory = ownerHistoryQuery.data?.data ?? [];
   const serviceOrders = serviceOrdersQuery.data?.data ?? [];
 
@@ -149,6 +185,19 @@ export function ServiceOrderCreatePage() {
 
   const availableVehicleIdsByClient = useMemo(() => {
     const grouped = new Map<string, Set<string>>();
+    if (isReceptionist) {
+      vehicles.forEach((vehicle) => {
+        const personId = String(vehicle.ownerPersonId ?? "");
+        const ownerVehicleId = String(vehicle.id ?? vehicle.Id ?? "");
+        if (!personId || !ownerVehicleId) return;
+        if (!(vehicle.isActive ?? vehicle.IsActive ?? true)) return;
+        if (activeOrderVehicleIds.has(ownerVehicleId)) return;
+        const ids = grouped.get(personId) ?? new Set<string>();
+        ids.add(ownerVehicleId);
+        grouped.set(personId, ids);
+      });
+      return grouped;
+    }
     ownerHistory
       .filter((item) => !(item.endDate ?? item.EndDate))
       .forEach((item) => {
@@ -163,7 +212,7 @@ export function ServiceOrderCreatePage() {
         grouped.set(personId, ids);
       });
     return grouped;
-  }, [activeOrderVehicleIds, ownerHistory, vehiclesById]);
+  }, [activeOrderVehicleIds, isReceptionist, ownerHistory, vehicles, vehiclesById]);
 
   const availablePeople = useMemo(() => {
     return people.filter((person) => availableVehicleIdsByClient.has(String(person.id ?? person.Id)));
@@ -180,7 +229,7 @@ export function ServiceOrderCreatePage() {
     mutationFn: () => serviceOrdersService.createEmpty({ clientPersonId: Number(clientId), vehicleId: Number(vehicleId) }),
     onSuccess: (response) => {
       const id = (response.data as { id?: number }).id;
-      navigate(id ? `/service-orders/${id}` : "/service-orders");
+      navigate(id ? `${basePath}/${id}` : basePath);
     },
   });
 
@@ -188,9 +237,9 @@ export function ServiceOrderCreatePage() {
 
   return (
     <>
-      <PageHeader title="Crear orden" description="El Jefe de Taller crea una orden vacía asociando un cliente con uno de sus vehículos activos." />
-      {(personsQuery.isError || vehiclesQuery.isError || ownerHistoryQuery.isError || serviceOrdersQuery.isError) ? (
-        <ApiErrorAlert error={personsQuery.error ?? vehiclesQuery.error ?? ownerHistoryQuery.error ?? serviceOrdersQuery.error} action="No se pudo cargar la información" />
+      <PageHeader title="Crear orden" description="Crea una orden vacía asociando un cliente con uno de sus vehículos activos." />
+      {(receptionCustomersQuery.isError || receptionVehiclesQuery.isError || personsQuery.isError || vehiclesQuery.isError || ownerHistoryQuery.isError || serviceOrdersQuery.isError) ? (
+        <ApiErrorAlert error={receptionCustomersQuery.error ?? receptionVehiclesQuery.error ?? personsQuery.error ?? vehiclesQuery.error ?? ownerHistoryQuery.error ?? serviceOrdersQuery.error} action="No se pudo cargar la información" />
       ) : null}
 
       <Card className="p-5">
@@ -205,7 +254,7 @@ export function ServiceOrderCreatePage() {
                 </option>
               ))}
             </select>
-            {!availablePeople.length && !personsQuery.isLoading && !vehiclesQuery.isLoading && !ownerHistoryQuery.isLoading && !serviceOrdersQuery.isLoading ? (
+            {!availablePeople.length && !receptionCustomersQuery.isLoading && !receptionVehiclesQuery.isLoading && !personsQuery.isLoading && !vehiclesQuery.isLoading && !ownerHistoryQuery.isLoading && !serviceOrdersQuery.isLoading ? (
               <span className="mt-2 block text-sm font-semibold text-amber-700">
                 No hay clientes con vehículos activos disponibles para crear una orden.
               </span>
@@ -249,7 +298,10 @@ export function ServiceOrderCreatePage() {
           </p>
         ) : null}
 
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={() => navigate(basePath)}>
+            Cancelar
+          </Button>
           <Button disabled={!canCreate} isLoading={createMutation.isPending} onClick={() => createMutation.mutate()}>
             Crear orden vacía
           </Button>

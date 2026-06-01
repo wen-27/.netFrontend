@@ -57,11 +57,7 @@ export const navByRole: Record<Role, NavItem[]> = {
   ],
   Receptionist: [
     { label: "Dashboard", path: "/dashboard/reception", icon: Gauge },
-    { label: "Clientes", path: "/reception/customers", icon: Users },
-    { label: "Vehículos", path: "/reception/vehicles", icon: Car },
-    { label: "Órdenes de servicio", path: "/reception/service-orders", icon: ClipboardList },
     { label: "Facturas", path: "/invoices", icon: FileText },
-    { label: "Verificación de pagos", path: "/reception/payments-verification", icon: CreditCard },
     { label: "Entregas", path: "/reception/deliveries", icon: PackageCheck },
   ],
   Mechanic: [
@@ -94,25 +90,21 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "Dashboard stock", path: "/dashboard/warehouse-chief", icon: Gauge },
     { label: "Stock operativo", path: "/warehouse/products", icon: Package },
     { label: "Solicitar reposición", path: "/warehouse/products/new", icon: ShoppingCart },
-    { label: "Envíos a inventario", path: "/warehouse/stock-submissions", icon: Send },
-    { label: "Stock rechazado", path: "/warehouse/stock-submissions", icon: History },
+    { label: "Reposiciones enviadas", path: "/warehouse/stock-submissions", icon: Send },
     { label: "Bajo stock", path: "/parts/low-stock", icon: BarChart3 },
   ],
   InventoryManager: [
     { label: "Dashboard inventario", path: "/dashboard/inventory-manager", icon: Gauge },
     { label: "Revisión de stock", path: "/inventory/review", icon: PackageSearch },
     { label: "Catálogo maestro", path: "/inventory/products", icon: PackageCheck },
-    { label: "Crear repuesto", path: "/parts/new", icon: Plus },
-    { label: "Editar repuestos", path: "/parts", icon: Package },
     { label: "Historial de inventario", path: "/inventory/history", icon: History },
-    { label: "Solicitudes rechazadas", path: "/inventory/history", icon: FileText },
   ],
 };
 
 export const moduleRoles = {
   persons: ["Admin", "Receptionist"] as Role[],
   vehicles: ["Admin", "Receptionist"] as Role[],
-  serviceOrders: ["Admin", "Receptionist", "Mechanic", "WorkshopChief"] as Role[],
+  serviceOrders: ["Admin", "Mechanic", "WorkshopChief"] as Role[],
   parts: ["Admin", "InventoryManager"] as Role[],
   purchases: ["Admin", "WarehouseChief"] as Role[],
   invoices: ["Admin", "Receptionist", "Client"] as Role[],

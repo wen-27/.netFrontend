@@ -752,6 +752,8 @@ export const operationsService = {
   },
   getPaymentsPendingReceptionVerification: () =>
     apiData(apiClient.get<ApiPayment[]>("/api/reception/payments/pending-verification")).then((payments) => payments.map((payment) => normalizePayment(payment))),
+  getReceptionApprovedPayments: () =>
+    apiData(apiClient.get<ApiPayment[]>("/api/reception/payments", { params: { status: "Approved" } })).then((payments) => payments.map((payment) => normalizePayment(payment))),
   getReceptionPaymentById: (paymentId: string) =>
     apiData(apiClient.get<ApiPayment>(`/api/reception/payments/${paymentId}`)).then(normalizePayment),
   approvePaymentByReception: (paymentId: string, deliveryDate?: string) =>
@@ -818,6 +820,7 @@ export const {
   deactivateWorkshopService,
   submitClientPayment,
   getPaymentsPendingReceptionVerification,
+  getReceptionApprovedPayments,
   getReceptionPaymentById,
   approvePaymentByReception,
   rejectPaymentByReception,

@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Save } from "lucide-react";
 import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
@@ -23,16 +24,19 @@ type FormShellProps = {
   description: string;
   primaryLabel?: string;
   secondaryLabel?: string;
+  cancelTo?: string;
+  showPrimary?: boolean;
 };
 
-export function FormShell({ title, description, primaryLabel = "Nombre", secondaryLabel = "Referencia" }: FormShellProps) {
+export function FormShell({ title, description, primaryLabel = "Nombre", secondaryLabel = "Referencia", cancelTo, showPrimary = true }: FormShellProps) {
+  const navigate = useNavigate();
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { status: "Activo" },
+    defaultValues: { first: showPrimary ? "" : "No editable", status: "Activo" },
   });
 
   return (
@@ -40,7 +44,7 @@ export function FormShell({ title, description, primaryLabel = "Nombre", seconda
       <PageHeader title={title} description={description} />
       <Card className="p-5">
         <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit(() => undefined)}>
-          <FormInput label={primaryLabel} registration={register("first")} error={errors.first} />
+          {showPrimary ? <FormInput label={primaryLabel} registration={register("first")} error={errors.first} /> : null}
           <FormInput label={secondaryLabel} registration={register("second")} error={errors.second} />
           <FormSelect
             label="Estado"
@@ -56,7 +60,7 @@ export function FormShell({ title, description, primaryLabel = "Nombre", seconda
             <FormTextarea label="Observaciones" registration={register("notes")} error={errors.notes} />
           </div>
           <div className="sticky bottom-0 -mx-5 -mb-5 flex justify-end gap-2 border-t border-slate-200 bg-white p-4 md:col-span-2">
-            <Button variant="secondary" type="button">Cancelar</Button>
+            <Button variant="secondary" type="button" onClick={() => (cancelTo ? navigate(cancelTo) : navigate(-1))}>Cancelar</Button>
             <Button type="submit" isLoading={isSubmitting} icon={<Save className="h-4 w-4" />}>Guardar</Button>
           </div>
         </form>

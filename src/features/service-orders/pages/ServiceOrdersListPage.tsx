@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ColumnDef } from "@tanstack/react-table";
 import { Eye, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Button } from "../../../shared/components/ui/Button";
 import { Card } from "../../../shared/components/ui/Card";
 import { Modal } from "../../../shared/components/ui/Modal";
@@ -31,6 +31,8 @@ const activeStatuses = new Set(["Created", "PendingAssignment", "Assigned", "InP
 function ServiceOrdersTablePage({ pendingClientApprovalOnly = false, createdOnly = false }: { pendingClientApprovalOnly?: boolean; createdOnly?: boolean }) {
   const table = useTableQueryState();
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const basePath = location.pathname.startsWith("/reception") ? "/reception/service-orders" : "/service-orders";
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({ statusId: "", customer: "", vehicle: "", orderCode: "", mechanic: "" });
   const [orderToComplete, setOrderToComplete] = useState<ServiceOrder | null>(null);
@@ -68,7 +70,7 @@ function ServiceOrdersTablePage({ pendingClientApprovalOnly = false, createdOnly
       meta: { className: "w-28 whitespace-nowrap text-right" },
       cell: ({ row }) => (
         <div className="flex flex-col items-end gap-2">
-          <Link to={createdOnly ? `/mechanic/chief-orders/${row.original.id}` : `/service-orders/${row.original.id}`}>
+          <Link to={createdOnly ? `/mechanic/chief-orders/${row.original.id}` : `${basePath}/${row.original.id}`}>
             <Button variant="secondary" className="min-h-9 w-24 whitespace-nowrap px-2 text-xs" icon={<Eye className="h-4 w-4" />} aria-label="Ver detalle">Ver</Button>
           </Link>
           {createdOnly ? (
@@ -109,7 +111,7 @@ function ServiceOrdersTablePage({ pendingClientApprovalOnly = false, createdOnly
       <PageHeader
         title={createdOnly ? "Órdenes del jefe" : pendingClientApprovalOnly ? "Órdenes pendientes de aprobación" : "Órdenes activas"}
         description={createdOnly ? "Órdenes vacías creadas por el Jefe de Taller para diagnóstico." : pendingClientApprovalOnly ? "Órdenes completas que esperan aprobación del cliente." : "Órdenes que el taller tiene activas para seguimiento y ejecución."}
-        actions={pendingClientApprovalOnly || createdOnly ? undefined : <Button icon={<Plus className="h-4 w-4" />}><Link to="/service-orders/new">Crear orden</Link></Button>}
+        actions={pendingClientApprovalOnly || createdOnly ? undefined : <Button icon={<Plus className="h-4 w-4" />}><Link to={`${basePath}/new`}>Crear orden</Link></Button>}
       />
       {showFilters && !pendingClientApprovalOnly ? (
         <Card className="mb-4 grid gap-3 p-4 md:grid-cols-5">

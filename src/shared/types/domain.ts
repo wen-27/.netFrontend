@@ -256,6 +256,12 @@ export type Invoice = {
   taxes: number;
   total: number;
   paymentStatus: string;
+  amount?: number;
+  balance?: number;
+  method?: string;
+  vehicle?: string;
+  clientDocument?: string;
+  reference?: string;
 };
 
 export type UserAccount = {

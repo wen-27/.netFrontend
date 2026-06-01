@@ -2,7 +2,7 @@ import { PaymentStatus } from "../types/domain";
 
 export const paymentStatusLabels: Record<PaymentStatus, string> = {
   PendingPayment: "Pendiente de pago",
-  PendingReceptionVerification: "Pendiente de revisión",
+  PendingReceptionVerification: "Pendiente revisión de pago",
   Approved: "Pagada",
   Rejected: "Rechazada",
   Refunded: "Reembolsada",
