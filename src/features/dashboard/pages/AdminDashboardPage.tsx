@@ -51,7 +51,7 @@ export function AdminDashboardPage() {
         <MetricCard label="Jefes de taller" value={String(totals?.workshopChiefs ?? 0)} tone="indigo" icon={UserCog} />
       </div>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[1.4fr_1fr]">
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
         <Card className="p-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-bold text-slate-900">Últimas órdenes creadas</h2>
@@ -72,20 +72,6 @@ export function AdminDashboardPage() {
         </Card>
 
         <Card className="p-5">
-          <h2 className="font-bold text-slate-900">Órdenes por estado</h2>
-          <div className="mt-4 space-y-3">
-            {(data?.ordersByStatus ?? []).map((item) => (
-              <div key={item.status} className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2">
-                <span className="text-sm font-semibold text-slate-700">{item.status}</span>
-                <span className="text-lg font-bold text-slate-950">{item.total}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      <div className="mt-5 grid gap-5 xl:grid-cols-2">
-        <Card className="p-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-bold text-slate-900">Últimos pagos</h2>
             <Link className="text-sm font-semibold text-blue-600 hover:text-blue-700" to="/payments">Ver pagos</Link>
@@ -102,51 +88,6 @@ export function AdminDashboardPage() {
                   <span className="font-bold text-slate-950">{formatCurrency(payment.amount)}</span>
                   <Badge tone={getPaymentStatusTone(payment.status)}>{getPaymentStatusLabel(payment.status)}</Badge>
                 </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <h2 className="font-bold text-slate-900">Mecánicos por especialidad</h2>
-          <div className="mt-4 space-y-3">
-            {(data?.mechanicsBySpecialty ?? []).length === 0 ? <p className="py-4 text-sm font-semibold text-slate-500">No hay especialidades asignadas.</p> : null}
-            {(data?.mechanicsBySpecialty ?? []).map((item) => (
-              <div key={item.specialty} className="flex items-center justify-between rounded-md border border-blue-100 bg-blue-50 px-3 py-2">
-                <span className="text-sm font-semibold text-blue-900">{item.specialty}</span>
-                <span className="text-lg font-bold text-blue-950">{item.total}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      <div className="mt-5 grid gap-5 xl:grid-cols-2">
-        <Card className="p-5">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-bold text-slate-900">Clientes recientes</h2>
-            <Link className="text-sm font-semibold text-blue-600 hover:text-blue-700" to="/persons">Ver clientes</Link>
-          </div>
-          <div className="mt-4 divide-y divide-slate-100">
-            {(data?.recentClients ?? []).map((client) => (
-              <div key={client.id} className="flex flex-col gap-1 py-3">
-                <p className="font-semibold text-slate-900">{client.fullName}</p>
-                <p className="text-sm text-slate-500">{client.document} · {client.email ?? "Sin correo"} · {formatDateTime(client.createdAt)}</p>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-bold text-slate-900">Vehículos recientes</h2>
-            <Link className="text-sm font-semibold text-blue-600 hover:text-blue-700" to="/vehicles">Ver vehículos</Link>
-          </div>
-          <div className="mt-4 divide-y divide-slate-100">
-            {(data?.recentVehicles ?? []).map((vehicle) => (
-              <div key={vehicle.id} className="flex flex-col gap-1 py-3">
-                <p className="font-semibold text-slate-900">{vehicle.vehicle}</p>
-                <p className="text-sm text-slate-500">{vehicle.vin} · {vehicle.owner} · {formatDateTime(vehicle.createdAt)}</p>
               </div>
             ))}
           </div>

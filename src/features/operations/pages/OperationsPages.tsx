@@ -199,9 +199,27 @@ export function WorkshopChiefDashboardPage() {
   );
 }
 
+function productValue(product: WarehouseProduct, ...keys: string[]) {
+  const source = product as unknown as Record<string, unknown>;
+  return keys.map((key) => source[key]).find((value) => value !== undefined && value !== null && value !== "");
+}
+
+function productText(product: WarehouseProduct, fallback: string, ...keys: string[]) {
+  const value = productValue(product, ...keys);
+  return value === undefined ? fallback : String(value);
+}
+
+function productNumber(product: WarehouseProduct, fallback: number, ...keys: string[]) {
+  const value = productValue(product, ...keys);
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : fallback;
+}
+
 function getProductStockStatus(product: WarehouseProduct) {
-  if (product.quantity <= 0) return "Agotado";
-  if (product.quantity <= product.minimumStock) return "Bajo stock";
+  const quantity = productNumber(product, 0, "quantity", "stock", "Stock");
+  const minimumStock = productNumber(product, 0, "minimumStock", "MinimumStock");
+  if (quantity <= 0) return "Agotado";
+  if (quantity <= minimumStock) return "Bajo stock";
   return "Disponible";
 }
 
@@ -243,21 +261,21 @@ function StockProductsTable({
           {products.length === 0 ? <tr><td className="px-3 py-5 font-semibold text-slate-500" colSpan={hasActions ? 9 : 8}>No hay repuestos para mostrar.</td></tr> : null}
           {products.map((product) => (
             <tr key={product.id}>
-              <td className="break-words px-3 py-3 font-semibold text-slate-900">{product.name}</td>
-              <td className="break-words px-3 py-3">{product.referenceCode}</td>
-              <td className="break-words px-3 py-3">{product.category}</td>
-              <td className="break-words px-3 py-3">{product.brand || "Sin marca"}</td>
-              <td className="px-3 py-3 font-bold">{product.quantity}</td>
-              <td className="px-3 py-3">{product.minimumStock}</td>
+              <td className="break-words px-3 py-3 font-semibold text-slate-900">{productText(product, "Repuesto", "name", "description", "Description")}</td>
+              <td className="break-words px-3 py-3">{productText(product, "Sin referencia", "referenceCode", "code", "Code")}</td>
+              <td className="break-words px-3 py-3">{productText(product, "Repuesto", "category", "Category")}</td>
+              <td className="break-words px-3 py-3">{productText(product, "Sin marca", "brand", "Brand")}</td>
+              <td className="px-3 py-3 font-bold">{productNumber(product, 0, "quantity", "stock", "Stock")}</td>
+              <td className="px-3 py-3">{productNumber(product, 0, "minimumStock", "MinimumStock")}</td>
               <td className="px-3 py-3"><StockStatusBadge product={product} /></td>
-              <td className="break-words px-3 py-3">{formatCurrency(product.salePrice)}</td>
+              <td className="break-words px-3 py-3">{formatCurrency(productNumber(product, 0, "salePrice", "unitPrice", "UnitPrice"))}</td>
               {hasActions ? (
                 <td className="px-3 py-3 text-center">
                   <div className="flex flex-col items-stretch gap-2">
                     {onMovement ? (
                       <>
                         <Button variant="secondary" className="min-h-8 justify-center px-2 text-xs" icon={<PackagePlus className="h-4 w-4 shrink-0" />} onClick={() => onMovement(product, "in")}>Entrada</Button>
-                        <Button variant="secondary" className="min-h-8 justify-center px-2 text-xs" icon={<PackageMinus className="h-4 w-4 shrink-0" />} disabled={product.quantity <= 0} onClick={() => onMovement(product, "out")}>Salida</Button>
+                        <Button variant="secondary" className="min-h-8 justify-center px-2 text-xs" icon={<PackageMinus className="h-4 w-4 shrink-0" />} disabled={productNumber(product, 0, "quantity", "stock", "Stock") <= 0} onClick={() => onMovement(product, "out")}>Salida</Button>
                       </>
                     ) : null}
                     {showInventoryActions ? <Link to={`/parts/${product.id}/edit`}><Button variant="secondary" className="min-h-8 w-full px-2 text-xs">Editar</Button></Link> : null}
@@ -304,6 +322,76 @@ function StockMovementTable({ movements, footer }: { movements: StockMovement[];
         </tbody>
       </table>
       {footer}
+    </Card>
+  );
+}
+
+function CriticalProductsDashboardTable({ products }: { products: WarehouseProduct[] }) {
+  return (
+    <Card className="overflow-hidden">
+      <table className="w-full table-fixed text-left text-sm">
+        <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+          <tr>
+            <th className="w-[30%] px-4 py-3">Repuesto</th>
+            <th className="w-[18%] px-4 py-3">Referencia</th>
+            <th className="w-[12%] px-4 py-3">Stock</th>
+            <th className="w-[12%] px-4 py-3">Mínimo</th>
+            <th className="w-[14%] px-4 py-3">Estado</th>
+            <th className="w-[14%] px-4 py-3 text-right">Precio</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {products.length === 0 ? <tr><td className="px-4 py-5 font-semibold text-slate-500" colSpan={6}>No hay repuestos críticos para mostrar.</td></tr> : null}
+          {products.map((product) => (
+            <tr key={product.id}>
+              <td className="break-words px-4 py-3 font-semibold text-slate-900">
+                {productText(product, "Repuesto", "name", "description", "Description")}
+                <span className="mt-1 block text-xs font-normal text-slate-500">{productText(product, "Sin marca", "brand", "Brand")}</span>
+              </td>
+              <td className="break-words px-4 py-3">{productText(product, "Sin referencia", "referenceCode", "code", "Code")}</td>
+              <td className="px-4 py-3 font-bold">{productNumber(product, 0, "quantity", "stock", "Stock")}</td>
+              <td className="px-4 py-3">{productNumber(product, 0, "minimumStock", "MinimumStock")}</td>
+              <td className="px-4 py-3"><StockStatusBadge product={product} /></td>
+              <td className="break-words px-4 py-3 text-right">{formatCurrency(productNumber(product, 0, "salePrice", "unitPrice", "UnitPrice"))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+  );
+}
+
+function StockMovementDashboardTable({ movements }: { movements: StockMovement[] }) {
+  return (
+    <Card className="overflow-hidden">
+      <table className="w-full table-fixed text-left text-sm">
+        <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+          <tr>
+            <th className="w-[18%] px-4 py-3">Fecha</th>
+            <th className="w-[28%] px-4 py-3">Repuesto</th>
+            <th className="w-[14%] px-4 py-3">Acción</th>
+            <th className="w-[12%] px-4 py-3">Cambio</th>
+            <th className="w-[12%] px-4 py-3">Stock final</th>
+            <th className="w-[16%] px-4 py-3">Observación</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {movements.length === 0 ? <tr><td className="px-4 py-5 font-semibold text-slate-500" colSpan={6}>No hay movimientos registrados.</td></tr> : null}
+          {movements.map((movement) => (
+            <tr key={movement.id}>
+              <td className="break-words px-4 py-3">{formatDateTime(movement.createdAt)}</td>
+              <td className="break-words px-4 py-3">
+                <p className="font-semibold text-slate-900">{movement.partName}</p>
+                <p className="mt-1 text-xs text-slate-500">{movement.partCode}</p>
+              </td>
+              <td className="break-words px-4 py-3">{movement.action}</td>
+              <td className={`px-4 py-3 font-bold ${movement.quantityChange < 0 ? "text-red-700" : "text-emerald-700"}`}>{movement.quantityChange > 0 ? `+${movement.quantityChange}` : movement.quantityChange}</td>
+              <td className="px-4 py-3">{movement.resultingStock}</td>
+              <td className="break-words px-4 py-3">{movement.comment ?? "Sin observación"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </Card>
   );
 }
@@ -389,14 +477,14 @@ export function WarehouseChiefDashboardPage() {
         <MetricCard label="Stock rechazado" value={String(submissions.filter((item) => item.status === "RejectedByInventoryManager").length)} tone="red" icon={XCircle} />
         <MetricCard label="Stock aprobado" value={String(submissions.filter((item) => item.status === "ApprovedByInventoryManager").length)} tone="green" icon={PackageCheck} />
       </div>
-      <div className="mt-5 grid gap-5 xl:grid-cols-[1.2fr_1fr]">
+      <div className="mt-5 grid gap-5">
         <div>
           <h2 className="mb-3 font-bold text-slate-900">Repuestos críticos</h2>
-          <StockProductsTable products={products.filter((item) => item.quantity <= item.minimumStock).slice(0, 8)} />
+          <CriticalProductsDashboardTable products={products.filter((item) => item.quantity <= item.minimumStock).slice(0, 8)} />
         </div>
         <div>
           <h2 className="mb-3 font-bold text-slate-900">Movimientos recientes</h2>
-          <StockMovementTable movements={dashboard?.recentMovements ?? []} />
+          <StockMovementDashboardTable movements={dashboard?.recentMovements ?? []} />
         </div>
       </div>
     </>
@@ -1190,7 +1278,7 @@ export function WarehouseProductsPage({ embedded = false }: { embedded?: boolean
   const pagedProducts = useMemo(() => data.slice((page - 1) * pageSize, page * pageSize), [data, page]);
   return (
     <>
-      {!embedded ? <PageHeader title="Stock operativo" description="Cantidades reales disponibles y movimientos de repuestos." actions={<Link to="/warehouse/stock-submissions"><Button variant="secondary" icon={<Plus className="h-4 w-4" />}>Solicitar reposición</Button></Link>} /> : null}
+      {!embedded ? <PageHeader title="Stock operativo" description="Cantidades reales disponibles y movimientos de repuestos." actions={<Link to="/warehouse/products/new"><Button variant="secondary" icon={<Plus className="h-4 w-4" />}>Solicitar reposición</Button></Link>} /> : null}
       {isError ? <ApiErrorAlert error={error} action="No se pudo cargar el stock" /> : null}
       <Card className={embedded ? "mt-5 p-4" : "p-4"}>
         <div className="grid gap-3 md:grid-cols-[1fr_220px]">
@@ -1227,7 +1315,7 @@ export function WarehouseProductsPage({ embedded = false }: { embedded?: boolean
 export function WarehouseProductFormPage() {
   return (
     <>
-      <PageHeader title="Registrar producto" description="Calcula precio de venta y envía stock a revisión del Jefe de Almacén." />
+      <PageHeader title="Solicitar reposición" description="Registra el producto, calcula el precio y envía la reposición al Jefe de Almacén." />
       <StockSubmissionForm />
     </>
   );
@@ -1237,7 +1325,11 @@ export function WarehouseStockSubmissionsPage() {
   const { data = [] } = useFallbackQuery(["warehouse-submissions"], getStockSubmissions);
   return (
     <>
-      <PageHeader title="Envíos a almacén" description="Stock enviado a revisión, rechazado o aprobado por Jefe de Almacén." />
+      <PageHeader
+        title="Envíos a almacén"
+        description="Stock enviado a revisión, rechazado o aprobado por Jefe de Almacén."
+        actions={<Link to="/warehouse/products/new"><Button icon={<Plus className="h-4 w-4" />}>Solicitar reposición</Button></Link>}
+      />
       <StockSubmissionList submissions={data} />
     </>
   );

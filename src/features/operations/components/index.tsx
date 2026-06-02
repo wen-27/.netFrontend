@@ -790,6 +790,22 @@ export function StockSubmissionReviewDrawer({ open, submission, onClose }: { ope
 }
 
 export function InventoryProductTable({ products }: { products: WarehouseProduct[] }) {
+  function valueOf(product: WarehouseProduct, ...keys: string[]) {
+    const source = product as unknown as Record<string, unknown>;
+    return keys.map((key) => source[key]).find((value) => value !== undefined && value !== null && value !== "");
+  }
+
+  function textOf(product: WarehouseProduct, fallback: string, ...keys: string[]) {
+    const value = valueOf(product, ...keys);
+    return value === undefined ? fallback : String(value);
+  }
+
+  function numberOf(product: WarehouseProduct, fallback: number, ...keys: string[]) {
+    const value = valueOf(product, ...keys);
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : fallback;
+  }
+
   return (
     <Card className="overflow-hidden">
       <table className="w-full table-fixed text-left text-sm">
@@ -806,12 +822,12 @@ export function InventoryProductTable({ products }: { products: WarehouseProduct
         <tbody className="divide-y divide-slate-100">
           {products.map((product) => (
             <tr key={product.id}>
-              <td className="break-words px-3 py-3 font-semibold">{product.name}</td>
-              <td className="break-words px-3 py-3">{product.referenceCode}</td>
-              <td className="break-words px-3 py-3">{product.supplier}</td>
-              <td className="break-words px-3 py-3">{product.quantity}</td>
-              <td className="break-words px-3 py-3">{formatCurrency(product.salePrice)}</td>
-              <td className="break-words px-3 py-3">{product.minimumStock}</td>
+              <td className="break-words px-3 py-3 font-semibold">{textOf(product, "Repuesto", "name", "description", "Description")}</td>
+              <td className="break-words px-3 py-3">{textOf(product, "Sin referencia", "referenceCode", "code", "Code")}</td>
+              <td className="break-words px-3 py-3">{textOf(product, "Inventario", "supplier", "Supplier")}</td>
+              <td className="break-words px-3 py-3">{numberOf(product, 0, "quantity", "stock", "Stock")}</td>
+              <td className="break-words px-3 py-3">{formatCurrency(numberOf(product, 0, "salePrice", "unitPrice", "UnitPrice"))}</td>
+              <td className="break-words px-3 py-3">{numberOf(product, 0, "minimumStock", "MinimumStock")}</td>
             </tr>
           ))}
         </tbody>

@@ -53,6 +53,7 @@ export const usersService = {
   getById: (id: string) => apiClient.get(`/api/users/${id}`),
   create: (payload: AdminUserCreatePayload) => apiClient.post("/api/admin/users", payload),
   updateStatus: (id: string, payload: { isActive: boolean }) => apiClient.patch(`/api/admin/users/${id}/status`, payload),
+  updateRoles: (id: string, payload: { roleNames: string[] }) => apiClient.put(`/api/admin/users/${id}/roles`, payload),
   listRoles: (params: QueryParams) =>
     getPaginated<Record<string, unknown>>("/api/roles", params, []).then((page) => ({ ...page, data: page.data.map(mapCatalogOption) })),
   listDocumentTypes: () =>
