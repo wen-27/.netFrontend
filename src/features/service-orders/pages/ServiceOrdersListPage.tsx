@@ -61,21 +61,22 @@ function ServiceOrdersTablePage({ pendingClientApprovalOnly = false, createdOnly
     { header: "Cliente", accessorKey: "customer" },
     { header: "Vehículo", accessorKey: "vehicle" },
     { header: "Estado", cell: ({ row }) => <OrderStatusBadge status={row.original.status} /> },
-    { header: "Mecánico asignado", accessorKey: "mechanic" },
+    { header: "Servicios", cell: ({ row }) => <span className="block whitespace-normal break-words leading-snug">{row.original.services?.join(", ") || "Sin servicios"}</span> },
+    { header: "Mecánicos asignados", cell: ({ row }) => <span className="block whitespace-normal break-words leading-snug">{row.original.assignedMechanics?.join(", ") || row.original.mechanic || "Sin asignar"}</span> },
     { header: "Fecha ingreso", cell: ({ row }) => formatDate(row.original.entryDate) },
     { header: "Entrega estimada", cell: ({ row }) => formatDate(row.original.estimatedDelivery) },
     { header: "Total estimado", cell: ({ row }) => formatCurrency(row.original.estimatedTotal) },
     {
       header: "Acciones",
-      meta: { className: "w-28 whitespace-nowrap text-right" },
+      meta: { className: "w-[10%] text-center" },
       cell: ({ row }) => (
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-col items-stretch gap-2">
           <Link to={createdOnly ? `/mechanic/chief-orders/${row.original.id}` : `${basePath}/${row.original.id}`}>
-            <Button variant="secondary" className="min-h-9 w-24 whitespace-nowrap px-2 text-xs" icon={<Eye className="h-4 w-4" />} aria-label="Ver detalle">Ver</Button>
+            <Button variant="secondary" className="min-h-9 w-full px-2 text-xs" icon={<Eye className="h-4 w-4" />} aria-label="Ver detalle">Ver</Button>
           </Link>
           {createdOnly ? (
             <Button
-              className="min-h-9 w-24 whitespace-nowrap px-2 text-xs"
+              className="min-h-9 w-full px-2 text-xs"
               isLoading={completeMutation.isPending}
               onClick={() => {
                 setOrderToComplete(row.original);

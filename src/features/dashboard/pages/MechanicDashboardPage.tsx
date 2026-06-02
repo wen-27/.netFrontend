@@ -113,27 +113,27 @@ export function MechanicDashboardPage() {
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
         <Card className="overflow-hidden">
           <DashboardTableHeader title="Solicitudes" filter={requestFilter} onFilterChange={(value) => { setRequestFilter(value); setRequestPage(1); }} />
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+          <div>
+            <table className="w-full table-fixed text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="px-4 py-3">Orden</th>
-                  <th className="px-4 py-3">Solicitud</th>
-                  <th className="px-4 py-3">Prioridad</th>
-                  <th className="px-4 py-3">Estado</th>
+                  <th className="w-[18%] break-words px-4 py-3">Orden</th>
+                  <th className="w-[42%] break-words px-4 py-3">Solicitud</th>
+                  <th className="w-[16%] break-words px-4 py-3">Prioridad</th>
+                  <th className="w-[24%] break-words px-4 py-3">Estado</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {pagedRequests.length === 0 ? <tr><td className="px-4 py-5 font-semibold text-slate-500" colSpan={4}>No hay solicitudes para mostrar.</td></tr> : null}
                 {pagedRequests.map((request) => (
                   <tr key={request.id}>
-                    <td className="px-4 py-3 font-bold text-slate-900">{request.orderCode}</td>
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-slate-800">{request.suggestedService}</p>
-                      <p className="mt-1 text-xs text-slate-500">{request.requestType === "Service" ? "Servicio" : request.suggestedPart ?? "Repuesto"}</p>
+                    <td className="break-words px-4 py-3 font-bold text-slate-900">{request.orderCode}</td>
+                    <td className="break-words px-4 py-3">
+                      <p className="break-words font-semibold text-slate-800">{request.suggestedService}</p>
+                      <p className="mt-1 break-words text-xs text-slate-500">{request.requestType === "Service" ? "Servicio" : request.suggestedPart ?? "Repuesto"}</p>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{request.priority}</td>
-                    <td className="px-4 py-3"><Badge tone={statusTone(request.status)}>{requestStatusLabel(request.status)}</Badge></td>
+                    <td className="break-words px-4 py-3 text-slate-600">{request.priority}</td>
+                    <td className="break-words px-4 py-3"><Badge tone={statusTone(request.status)}>{requestStatusLabel(request.status)}</Badge></td>
                   </tr>
                 ))}
               </tbody>
@@ -144,27 +144,27 @@ export function MechanicDashboardPage() {
 
         <Card className="overflow-hidden">
           <DashboardTableHeader title="Diagnósticos" filter={diagnosticFilter} onFilterChange={(value) => { setDiagnosticFilter(value); setDiagnosticPage(1); }} />
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+          <div>
+            <table className="w-full table-fixed text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="px-4 py-3">Orden</th>
-                  <th className="px-4 py-3">Vehículo</th>
-                  <th className="px-4 py-3">Hallazgos</th>
-                  <th className="px-4 py-3">Estado</th>
+                  <th className="w-[18%] break-words px-4 py-3">Orden</th>
+                  <th className="w-[28%] break-words px-4 py-3">Vehículo</th>
+                  <th className="w-[34%] break-words px-4 py-3">Hallazgos</th>
+                  <th className="w-[20%] break-words px-4 py-3">Estado</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {pagedDiagnostics.length === 0 ? <tr><td className="px-4 py-5 font-semibold text-slate-500" colSpan={4}>No hay diagnósticos para mostrar.</td></tr> : null}
                 {pagedDiagnostics.map((diagnostic) => (
                   <tr key={diagnostic.id}>
-                    <td className="px-4 py-3 font-bold text-slate-900">{diagnostic.orderCode}</td>
-                    <td className="px-4 py-3 text-slate-600">{diagnostic.vehicle}</td>
-                    <td className="px-4 py-3">
-                      <p className="line-clamp-2 font-semibold text-slate-800">{diagnostic.findings}</p>
-                      <p className="mt-1 line-clamp-1 text-xs text-slate-500">{diagnostic.recommendedWork}</p>
+                    <td className="break-words px-4 py-3 font-bold text-slate-900">{diagnostic.orderCode}</td>
+                    <td className="break-words px-4 py-3 text-slate-600">{diagnostic.vehicle}</td>
+                    <td className="break-words px-4 py-3">
+                      <p className="break-words font-semibold text-slate-800">{diagnostic.findings}</p>
+                      <p className="mt-1 break-words text-xs text-slate-500">{diagnostic.recommendedWork}</p>
                     </td>
-                    <td className="px-4 py-3"><Badge tone={statusTone(diagnostic.status)}>{diagnosticStatusLabel(diagnostic.status)}</Badge></td>
+                    <td className="break-words px-4 py-3"><Badge tone={statusTone(diagnostic.status)}>{diagnosticStatusLabel(diagnostic.status)}</Badge></td>
                   </tr>
                 ))}
               </tbody>

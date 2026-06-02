@@ -228,15 +228,15 @@ function StockProductsTable({
       <table className="w-full table-fixed text-left text-sm">
         <thead className="bg-slate-50 text-xs uppercase text-slate-500">
           <tr>
-            <th className="w-[18%] px-3 py-3">Repuesto</th>
-            <th className="w-[14%] px-3 py-3">Referencia</th>
-            <th className="w-[15%] px-3 py-3">Categoría</th>
-            <th className="w-[12%] px-3 py-3">Marca</th>
-            <th className="w-[8%] px-3 py-3">Stock</th>
-            <th className="w-[8%] px-3 py-3">Mín.</th>
-            <th className="w-[12%] px-3 py-3">Estado</th>
-            <th className="w-[8%] px-3 py-3">Precio</th>
-            {hasActions ? <th className="w-[12%] px-3 py-3">Acción</th> : null}
+            <th className="w-[16%] px-3 py-3">Repuesto</th>
+            <th className="w-[12%] px-3 py-3">Referencia</th>
+            <th className="w-[12%] px-3 py-3">Categoría</th>
+            <th className="w-[10%] px-3 py-3">Marca</th>
+            <th className="w-[7%] px-3 py-3">Stock</th>
+            <th className="w-[7%] px-3 py-3">Mín.</th>
+            <th className="w-[11%] px-3 py-3">Estado</th>
+            <th className="w-[10%] px-3 py-3">Precio</th>
+            {hasActions ? <th className="w-[15%] px-3 py-3 text-center">Acciones</th> : null}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -252,15 +252,15 @@ function StockProductsTable({
               <td className="px-3 py-3"><StockStatusBadge product={product} /></td>
               <td className="break-words px-3 py-3">{formatCurrency(product.salePrice)}</td>
               {hasActions ? (
-                <td className="px-3 py-3">
-                  <div className="flex min-w-[104px] flex-col gap-2">
+                <td className="px-3 py-3 text-center">
+                  <div className="flex flex-col items-stretch gap-2">
                     {onMovement ? (
                       <>
-                        <Button variant="secondary" className="h-8 justify-start px-2 text-xs" icon={<PackagePlus className="h-4 w-4 shrink-0" />} onClick={() => onMovement(product, "in")}>Entrada</Button>
-                        <Button variant="secondary" className="h-8 justify-start px-2 text-xs" icon={<PackageMinus className="h-4 w-4 shrink-0" />} disabled={product.quantity <= 0} onClick={() => onMovement(product, "out")}>Salida</Button>
+                        <Button variant="secondary" className="min-h-8 justify-center px-2 text-xs" icon={<PackagePlus className="h-4 w-4 shrink-0" />} onClick={() => onMovement(product, "in")}>Entrada</Button>
+                        <Button variant="secondary" className="min-h-8 justify-center px-2 text-xs" icon={<PackageMinus className="h-4 w-4 shrink-0" />} disabled={product.quantity <= 0} onClick={() => onMovement(product, "out")}>Salida</Button>
                       </>
                     ) : null}
-                    {showInventoryActions ? <Link to={`/parts/${product.id}/edit`}><Button variant="secondary" className="h-8 w-full px-2 text-xs">Editar</Button></Link> : null}
+                    {showInventoryActions ? <Link to={`/parts/${product.id}/edit`}><Button variant="secondary" className="min-h-8 w-full px-2 text-xs">Editar</Button></Link> : null}
                   </div>
                 </td>
               ) : null}
@@ -275,22 +275,30 @@ function StockProductsTable({
 
 function StockMovementTable({ movements, footer }: { movements: StockMovement[]; footer?: React.ReactNode }) {
   return (
-    <Card className="overflow-x-auto">
-      <table className="w-full min-w-[820px] text-left text-sm">
+    <Card className="overflow-hidden">
+      <table className="w-full table-fixed text-left text-sm">
         <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-          <tr>{["Fecha", "Repuesto", "Acción", "Cambio", "Stock resultante", "Precio", "Observación"].map((header) => <th className="px-4 py-3" key={header}>{header}</th>)}</tr>
+          <tr>
+            <th className="w-[14%] break-words px-3 py-3">Fecha</th>
+            <th className="w-[20%] break-words px-3 py-3">Repuesto</th>
+            <th className="w-[12%] break-words px-3 py-3">Acción</th>
+            <th className="w-[10%] break-words px-3 py-3">Cambio</th>
+            <th className="w-[12%] break-words px-3 py-3">Stock resultante</th>
+            <th className="w-[12%] break-words px-3 py-3">Precio</th>
+            <th className="w-[20%] break-words px-3 py-3">Observación</th>
+          </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {movements.length === 0 ? <tr><td className="px-4 py-5 font-semibold text-slate-500" colSpan={7}>No hay movimientos registrados.</td></tr> : null}
+          {movements.length === 0 ? <tr><td className="px-3 py-5 font-semibold text-slate-500" colSpan={7}>No hay movimientos registrados.</td></tr> : null}
           {movements.map((movement) => (
             <tr key={movement.id}>
-              <td className="px-4 py-3">{formatDateTime(movement.createdAt)}</td>
-              <td className="px-4 py-3"><p className="font-semibold text-slate-900">{movement.partName}</p><p className="text-xs text-slate-500">{movement.partCode}</p></td>
-              <td className="px-4 py-3">{movement.action}</td>
-              <td className={`px-4 py-3 font-bold ${movement.quantityChange < 0 ? "text-red-700" : "text-emerald-700"}`}>{movement.quantityChange > 0 ? `+${movement.quantityChange}` : movement.quantityChange}</td>
-              <td className="px-4 py-3">{movement.resultingStock}</td>
-              <td className="px-4 py-3">{formatCurrency(movement.unitPrice)}</td>
-              <td className="px-4 py-3">{movement.comment ?? "Sin observación"}</td>
+              <td className="break-words px-3 py-3">{formatDateTime(movement.createdAt)}</td>
+              <td className="break-words px-3 py-3"><p className="break-words font-semibold text-slate-900">{movement.partName}</p><p className="break-words text-xs text-slate-500">{movement.partCode}</p></td>
+              <td className="break-words px-3 py-3">{movement.action}</td>
+              <td className={`break-words px-3 py-3 font-bold ${movement.quantityChange < 0 ? "text-red-700" : "text-emerald-700"}`}>{movement.quantityChange > 0 ? `+${movement.quantityChange}` : movement.quantityChange}</td>
+              <td className="break-words px-3 py-3">{movement.resultingStock}</td>
+              <td className="break-words px-3 py-3">{formatCurrency(movement.unitPrice)}</td>
+              <td className="break-words px-3 py-3">{movement.comment ?? "Sin observación"}</td>
             </tr>
           ))}
         </tbody>

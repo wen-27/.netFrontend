@@ -11,8 +11,11 @@ function mapVehicle(item: Record<string, unknown>): Vehicle {
     type: String(item.type ?? item.Type ?? "Sin tipo"),
     year: Number(item.year ?? item.Year ?? 0),
     mileage: Number(item.mileage ?? item.Mileage ?? 0),
+    color: String(item.color ?? item.Color ?? ""),
+    currentOwnerId: Number(item.currentOwnerId ?? item.CurrentOwnerId ?? 0),
     currentOwner: String(item.currentOwner ?? item.CurrentOwner ?? "Sin propietario"),
     activeOrders: Number(item.activeOrders ?? item.ActiveOrders ?? 0),
+    isActive: Boolean(item.isActive ?? item.IsActive ?? true),
   };
 }
 
@@ -24,12 +27,13 @@ export const vehiclesService = {
       totalCount: getTotalCount(response) || response.data.length,
     };
   },
-  getById: (id: string) => apiClient.get(`/api/vehicles/${id}`),
+  getById: (id: string) => apiClient.get<Record<string, unknown>>(`/api/reception/vehicles/${id}`).then((response) => mapVehicle(response.data)),
   create: (payload: { modelId: number; vehicleTypeId: number; vin: string; year: number; color: string; mileage: number; isActive: boolean }) =>
     apiClient.post("/api/vehicles", payload),
   update: (id: string, payload: unknown) => apiClient.put(`/api/vehicles/${id}`, payload),
   remove: (id: string) => apiClient.delete(`/api/vehicles/${id}`),
   listOwnerHistory: (params: QueryParams) => getPaginated("/api/vehicleownerhistory", params, []),
+  listOwnerHistoryByVehicle: (id: string) => apiClient.get<Record<string, unknown>[]>(`/api/reception/vehicles/${id}/owner-history`).then((response) => response.data),
   createOwnerHistory: (payload: { vehicleId: number; personId: number; startDate: string }) => apiClient.post("/api/vehicleownerhistory", payload),
   endOwnerHistory: (vehicleId: number, payload: { endDate: string }) => apiClient.patch(`/api/vehicleownerhistory/${vehicleId}/end`, payload),
 };

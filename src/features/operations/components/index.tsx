@@ -791,18 +791,27 @@ export function StockSubmissionReviewDrawer({ open, submission, onClose }: { ope
 
 export function InventoryProductTable({ products }: { products: WarehouseProduct[] }) {
   return (
-    <Card className="overflow-x-auto">
-      <table className="w-full min-w-[760px] text-left text-sm">
-        <thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr>{["Producto", "Referencia", "Proveedor", "Cantidad", "Precio venta", "Stock mínimo"].map((header) => <th className="px-4 py-3" key={header}>{header}</th>)}</tr></thead>
+    <Card className="overflow-hidden">
+      <table className="w-full table-fixed text-left text-sm">
+        <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+          <tr>
+            <th className="w-[24%] break-words px-3 py-3">Producto</th>
+            <th className="w-[18%] break-words px-3 py-3">Referencia</th>
+            <th className="w-[22%] break-words px-3 py-3">Proveedor</th>
+            <th className="w-[10%] break-words px-3 py-3">Cantidad</th>
+            <th className="w-[14%] break-words px-3 py-3">Precio venta</th>
+            <th className="w-[12%] break-words px-3 py-3">Stock mínimo</th>
+          </tr>
+        </thead>
         <tbody className="divide-y divide-slate-100">
           {products.map((product) => (
             <tr key={product.id}>
-              <td className="px-4 py-3 font-semibold">{product.name}</td>
-              <td className="px-4 py-3">{product.referenceCode}</td>
-              <td className="px-4 py-3">{product.supplier}</td>
-              <td className="px-4 py-3">{product.quantity}</td>
-              <td className="px-4 py-3">{formatCurrency(product.salePrice)}</td>
-              <td className="px-4 py-3">{product.minimumStock}</td>
+              <td className="break-words px-3 py-3 font-semibold">{product.name}</td>
+              <td className="break-words px-3 py-3">{product.referenceCode}</td>
+              <td className="break-words px-3 py-3">{product.supplier}</td>
+              <td className="break-words px-3 py-3">{product.quantity}</td>
+              <td className="break-words px-3 py-3">{formatCurrency(product.salePrice)}</td>
+              <td className="break-words px-3 py-3">{product.minimumStock}</td>
             </tr>
           ))}
         </tbody>

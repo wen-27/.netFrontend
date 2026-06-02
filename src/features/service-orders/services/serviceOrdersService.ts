@@ -25,6 +25,10 @@ type ApiServiceOrder = Partial<ServiceOrder> & {
   WorkPerformed?: string;
   generalDescription?: string | null;
   GeneralDescription?: string | null;
+  services?: string[];
+  Services?: string[];
+  assignedMechanics?: string[];
+  AssignedMechanics?: string[];
 };
 
 type ApiOrderService = {
@@ -88,6 +92,8 @@ function normalizeServiceOrder(order: ApiServiceOrder): ServiceOrder {
     estimatedTotal: Number(order.estimatedTotal ?? order.EstimatedTotal ?? 0),
     workPerformed: order.workPerformed ?? order.WorkPerformed,
     generalDescription: order.generalDescription ?? order.GeneralDescription ?? undefined,
+    services: order.services ?? order.Services ?? [],
+    assignedMechanics: order.assignedMechanics ?? order.AssignedMechanics ?? [],
     orderServices: order.orderServices,
     additionalRequests: order.additionalRequests,
   };

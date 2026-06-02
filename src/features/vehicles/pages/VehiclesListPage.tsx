@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ColumnDef } from "@tanstack/react-table";
-import { Eye, Pencil, Plus } from "lucide-react";
+import { Eye, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "../../../shared/components/ui/Badge";
 import { Button } from "../../../shared/components/ui/Button";
@@ -17,10 +17,11 @@ const columns: ColumnDef<Vehicle>[] = [
   { header: "Modelo", accessorKey: "model" },
   { header: "Tipo", accessorKey: "type" },
   { header: "Año", accessorKey: "year" },
+  { header: "Color", accessorKey: "color" },
   { header: "Kilometraje", cell: ({ row }) => `${row.original.mileage.toLocaleString("es-CO")} km` },
   { header: "Propietario actual", accessorKey: "currentOwner" },
   { header: "Órdenes activas", cell: ({ row }) => <Badge tone={row.original.activeOrders > 0 ? "amber" : "green"}>{row.original.activeOrders}</Badge> },
-  { header: "Acciones", cell: ({ row }) => <div className="flex gap-1"><Button variant="ghost" className="h-8 w-8 px-0" icon={<Eye className="h-4 w-4" />} onClick={() => location.assign(`/vehicles/${row.original.id}`)} aria-label="Ver" /><Button variant="ghost" className="h-8 w-8 px-0" icon={<Pencil className="h-4 w-4" />} onClick={() => location.assign(`/vehicles/${row.original.id}/edit`)} aria-label="Editar" /></div> },
+  { header: "Acciones", meta: { className: "w-[12%] text-center" }, cell: ({ row }) => <div className="flex justify-center"><Button variant="secondary" className="min-h-8 px-2 text-xs" icon={<Eye className="h-4 w-4" />} onClick={() => location.assign(`/vehicles/${row.original.id}`)}>Ver detalles</Button></div> },
 ];
 
 export function VehiclesListPage() {

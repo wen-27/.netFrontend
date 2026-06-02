@@ -30,12 +30,17 @@ function mapPerson(item: Record<string, unknown>): Person {
     primaryPhone: text(item.primaryPhone ?? item.PrimaryPhone, "Sin teléfono"),
     vehiclesCount: numberValue(item.vehiclesCount ?? item.VehiclesCount),
     status: text(item.status ?? item.Status, "Activo"),
+    role: text(item.role ?? item.Role, "Client"),
+    gender: text(item.gender ?? item.Gender, "No registrado"),
+    birthDate: text(item.birthDate ?? item.BirthDate),
+    address: text(item.address ?? item.Address, "No registrado"),
   };
 }
 
 export const personsService = {
-  list: (params: QueryParams) => getPaginated<Record<string, unknown>>("/api/persons", params).then((page) => ({ ...page, data: page.data.map(mapPerson) })),
-  getById: (id: string) => apiClient.get<Record<string, unknown>>(`/api/persons/${id}`).then((response) => mapPerson(response.data)),
+  list: (params: QueryParams) => getPaginated<Record<string, unknown>>("/api/admin/clients", params).then((page) => ({ ...page, data: page.data.map(mapPerson) })),
+  getById: (id: string) => apiClient.get<Record<string, unknown>>(`/api/admin/clients/${id}`).then((response) => mapPerson(response.data)),
+  listVehicles: (id: string) => apiClient.get<Record<string, unknown>[]>(`/api/admin/clients/${id}/vehicles`).then((response) => response.data),
   create: (payload: { firstNames: string; lastNames: string }) => apiClient.post("/api/persons", payload),
   update: (id: string, payload: unknown) => apiClient.put(`/api/persons/${id}`, payload),
   remove: (id: string) => apiClient.delete(`/api/persons/${id}`),

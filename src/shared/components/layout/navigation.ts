@@ -105,7 +105,7 @@ export const moduleRoles = {
   persons: ["Admin", "Receptionist"] as Role[],
   vehicles: ["Admin", "Receptionist"] as Role[],
   serviceOrders: ["Admin", "Mechanic", "WorkshopChief"] as Role[],
-  parts: ["Admin", "InventoryManager"] as Role[],
+  parts: ["Admin", "InventoryManager", "WarehouseChief"] as Role[],
   purchases: ["Admin", "WarehouseChief"] as Role[],
   invoices: ["Admin", "Receptionist", "Client"] as Role[],
   payments: ["Admin", "Receptionist", "Client"] as Role[],

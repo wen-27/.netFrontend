@@ -40,7 +40,7 @@ export function DataTable<T>({ data, columns, isLoading, isError, error, totalCo
                   {headerGroup.headers.map((header) => {
                     const meta = header.column.columnDef.meta as { className?: string } | undefined;
                     return (
-                      <th key={header.id} className={`break-words px-3 py-3 font-bold ${meta?.className ?? ""}`}>
+                      <th key={header.id} className={`whitespace-normal break-words px-3 py-3 align-top font-bold ${meta?.className ?? ""}`}>
                         {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                       </th>
                     );
@@ -54,7 +54,7 @@ export function DataTable<T>({ data, columns, isLoading, isError, error, totalCo
                   {row.getVisibleCells().map((cell) => {
                     const meta = cell.column.columnDef.meta as { className?: string } | undefined;
                     return (
-                      <td key={cell.id} className={`break-words px-3 py-3 text-slate-700 ${meta?.className ?? ""}`}>
+                      <td key={cell.id} className={`whitespace-normal break-words px-3 py-3 align-top text-slate-700 ${meta?.className ?? ""}`}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
                     );

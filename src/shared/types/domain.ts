@@ -8,6 +8,10 @@ export type Person = {
   primaryPhone: string;
   vehiclesCount: number;
   status: string;
+  role?: string;
+  gender?: string;
+  birthDate?: string;
+  address?: string;
 };
 
 export type Vehicle = {
@@ -18,8 +22,11 @@ export type Vehicle = {
   type: string;
   year: number;
   mileage: number;
+  color?: string;
+  currentOwnerId?: number;
   currentOwner: string;
   activeOrders: number;
+  isActive?: boolean;
 };
 
 export type ServiceOrder = {
@@ -39,6 +46,8 @@ export type ServiceOrder = {
   deliveryDate?: string;
   workPerformed?: string;
   generalDescription?: string;
+  services?: string[];
+  assignedMechanics?: string[];
   orderServices?: OrderServiceItem[];
   additionalRequests?: AdditionalRequest[];
 };
