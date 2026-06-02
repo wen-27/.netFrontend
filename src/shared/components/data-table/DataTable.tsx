@@ -32,15 +32,15 @@ export function DataTable<T>({ data, columns, isLoading, isError, error, totalCo
           <EmptyState />
         </div>
       ) : (
-        <div>
-          <table className="w-full table-fixed border-collapse text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+        <div className="overflow-hidden">
+          <table className="w-full table-fixed border-collapse text-left text-[13px] leading-5 text-slate-700 xl:text-sm">
+            <thead className="border-y border-slate-200 bg-slate-900 text-[11px] uppercase tracking-wide text-slate-200">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
                     const meta = header.column.columnDef.meta as { className?: string } | undefined;
                     return (
-                      <th key={header.id} className={`whitespace-normal break-words px-3 py-3 align-top font-bold ${meta?.className ?? ""}`}>
+                      <th key={header.id} className={`whitespace-normal break-words px-3 py-3 align-middle font-black ${meta?.className ?? ""}`}>
                         {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                       </th>
                     );
@@ -50,11 +50,11 @@ export function DataTable<T>({ data, columns, isLoading, isError, error, totalCo
             </thead>
             <tbody className="divide-y divide-slate-100">
               {table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="hover:bg-slate-50">
+                <tr key={row.id} className="transition-colors hover:bg-amber-50/50">
                   {row.getVisibleCells().map((cell) => {
                     const meta = cell.column.columnDef.meta as { className?: string } | undefined;
                     return (
-                      <td key={cell.id} className={`whitespace-normal break-words px-3 py-3 align-top text-slate-700 ${meta?.className ?? ""}`}>
+                      <td key={cell.id} className={`whitespace-normal break-words px-3 py-3 align-middle text-slate-700 ${meta?.className ?? ""}`}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
                     );

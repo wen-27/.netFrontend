@@ -34,7 +34,7 @@ export function VehicleDetailPage() {
     <>
       <PageHeader
         title={`${vehicle.brand} ${vehicle.model}`}
-        description={`Detalle completo de ${vehicle.vin}.`}
+        description={`Detalle completo de ${vehicle.plate}.`}
         actions={<Button variant="secondary" icon={<ArrowLeft className="h-4 w-4" />}><Link to="/vehicles">Regresar</Link></Button>}
       />
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
@@ -44,7 +44,8 @@ export function VehicleDetailPage() {
             <h2 className="font-bold text-slate-900">Información básica</h2>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Placa / VIN">{vehicle.vin}</Field>
+            <Field label="Placa">{vehicle.plate}</Field>
+            <Field label="VIN">{vehicle.vin}</Field>
             <Field label="Estado"><Badge tone={vehicle.isActive ? "green" : "slate"}>{vehicle.isActive ? "Activo" : "Inactivo"}</Badge></Field>
             <Field label="Marca">{vehicle.brand}</Field>
             <Field label="Modelo">{vehicle.model}</Field>

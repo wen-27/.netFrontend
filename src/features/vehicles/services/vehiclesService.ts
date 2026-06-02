@@ -5,6 +5,7 @@ import { Vehicle } from "../../../shared/types/domain";
 function mapVehicle(item: Record<string, unknown>): Vehicle {
   return {
     id: String(item.id ?? item.Id ?? ""),
+    plate: String(item.plate ?? item.Plate ?? item.vin ?? item.Vin ?? ""),
     vin: String(item.vin ?? item.Vin ?? ""),
     brand: String(item.brand ?? item.Brand ?? "Sin marca"),
     model: String(item.model ?? item.Model ?? "Sin modelo"),
@@ -28,8 +29,10 @@ export const vehiclesService = {
     };
   },
   getById: (id: string) => apiClient.get<Record<string, unknown>>(`/api/reception/vehicles/${id}`).then((response) => mapVehicle(response.data)),
-  create: (payload: { modelId: number; vehicleTypeId: number; vin: string; year: number; color: string; mileage: number; isActive: boolean }) =>
+  create: (payload: { modelId: number; vehicleTypeId: number; plate: string; vin: string; year: number; color: string; mileage: number; isActive: boolean }) =>
     apiClient.post("/api/vehicles", payload),
+  createWithOwner: (payload: { ownerPersonId: number; modelId: number; vehicleTypeId: number; plate: string; vin: string; year: number; color?: string | null; mileage: number; startDate?: string | null }) =>
+    apiClient.post("/api/reception/vehicles", payload),
   update: (id: string, payload: unknown) => apiClient.put(`/api/vehicles/${id}`, payload),
   remove: (id: string) => apiClient.delete(`/api/vehicles/${id}`),
   listOwnerHistory: (params: QueryParams) => getPaginated("/api/vehicleownerhistory", params, []),

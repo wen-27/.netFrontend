@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CheckCircle2, Eye, Plus, RefreshCw, XCircle } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiErrorAlert } from "../../../shared/components/feedback/ApiErrorAlert";
 import { PageHeader } from "../../../shared/components/layout/PageHeader";
@@ -10,7 +10,6 @@ import { Badge } from "../../../shared/components/ui/Badge";
 import { DataTable } from "../../../shared/components/data-table/DataTable";
 import { TableToolbar } from "../../../shared/components/data-table/TableToolbar";
 import { TablePagination } from "../../../shared/components/data-table/TablePagination";
-import { useTableQueryState } from "../../../shared/hooks/useTableQueryState";
 import { formatCurrency, formatDateTime } from "../../../shared/utils/formatters";
 import { getPaymentStatusLabel } from "../../../shared/utils/statusLabels";
 import { receptionService, ReceptionCustomer, ReceptionPayment, ReceptionVehicle } from "../services/receptionService";
@@ -27,8 +26,27 @@ function statusTone(status: string): "green" | "amber" | "red" | "blue" | "slate
 }
 
 export function ReceptionCustomersPage() {
-  const table = useTableQueryState();
-  const query = useQuery({ queryKey: ["reception-customers", table.page, table.pageSize, table.search], queryFn: () => receptionService.customers(table.params) });
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const query = useQuery({
+    queryKey: ["reception-customers-list"],
+    queryFn: () => receptionService.customers({ pageNumber: 1, pageSize: 500 }),
+  });
+  useEffect(() => setPage(1), [search]);
+  const customers = query.data?.data ?? [];
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return customers;
+    return customers.filter((customer) => [
+      customer.documentType,
+      customer.documentNumber,
+      customer.fullName,
+      customer.primaryEmail,
+      customer.primaryPhone,
+    ].join(" ").toLowerCase().includes(term));
+  }, [customers, search]);
+  const paged = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page]);
   return (
     <>
       <PageHeader
@@ -42,7 +60,7 @@ export function ReceptionCustomersPage() {
         )}
       />
       <DataTable
-        data={query.data?.data ?? []}
+        data={paged}
         columns={[
           { header: "Documento", accessorFn: (row: ReceptionCustomer) => `${row.documentType} ${row.documentNumber}` },
           { header: "Cliente", accessorKey: "fullName" },
@@ -55,11 +73,11 @@ export function ReceptionCustomersPage() {
         isLoading={query.isLoading}
         isError={query.isError}
         error={query.error}
-        totalCount={query.data?.totalCount ?? 0}
-        page={table.page}
-        pageSize={table.pageSize}
-        onPageChange={table.setPage}
-        toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por documento, nombre o correo" />}
+        totalCount={filtered.length}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        toolbar={<TableToolbar search={search} onSearchChange={setSearch} placeholder="Buscar por documento, nombre o correo" />}
       />
     </>
   );
@@ -67,11 +85,19 @@ export function ReceptionCustomersPage() {
 
 export function ReceptionCustomerCreatePage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const documentTypes = useQuery({ queryKey: ["reception-document-types"], queryFn: receptionService.documentTypes });
   const [form, setForm] = useState({ documentTypeId: "1", documentNumber: "", firstName: "", middleName: "", lastName: "", secondLastName: "", email: "", phone: "" });
   const mutation = useMutation({
     mutationFn: () => receptionService.createCustomer({ ...form, documentTypeId: Number(form.documentTypeId), phoneCountryId: 1 }),
-    onSuccess: () => navigate("/reception/customers"),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["reception-customers-list"] }),
+        queryClient.invalidateQueries({ queryKey: ["reception-customers-select"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-reception-recent-customers"] }),
+      ]);
+      navigate("/reception/customers", { replace: true });
+    },
   });
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -121,13 +147,34 @@ export function ReceptionCustomerDetailPage() {
 }
 
 export function ReceptionVehiclesPage() {
-  const table = useTableQueryState();
-  const query = useQuery({ queryKey: ["reception-vehicles", table.page, table.pageSize, table.search], queryFn: () => receptionService.vehicles(table.params) });
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const query = useQuery({
+    queryKey: ["reception-vehicles-list"],
+    queryFn: () => receptionService.vehicles({ pageNumber: 1, pageSize: 500 }),
+  });
+  useEffect(() => setPage(1), [search]);
+  const vehicles = query.data?.data ?? [];
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return vehicles;
+    return vehicles.filter((vehicle) => [
+      vehicle.plate,
+      vehicle.vin,
+      vehicle.brand,
+      vehicle.model,
+      vehicle.type,
+      vehicle.currentOwner,
+      vehicle.year,
+    ].join(" ").toLowerCase().includes(term));
+  }, [vehicles, search]);
+  const paged = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page]);
   return (
     <>
       <PageHeader
         title="Vehículos"
-        description="Consulta por placa/VIN, propietario, marca o modelo."
+        description="Consulta por placa, VIN, propietario, marca o modelo."
         actions={(
           <>
             <Link to="/dashboard/reception"><Button variant="secondary">Dashboard</Button></Link>
@@ -136,9 +183,10 @@ export function ReceptionVehiclesPage() {
         )}
       />
       <DataTable
-        data={query.data?.data ?? []}
+        data={paged}
         columns={[
-          { header: "Placa/VIN", accessorKey: "vin" },
+          { header: "Placa", accessorKey: "plate" },
+          { header: "VIN", accessorKey: "vin" },
           { header: "Marca", accessorKey: "brand" },
           { header: "Modelo", accessorKey: "model" },
           { header: "Año", accessorKey: "year" },
@@ -149,11 +197,11 @@ export function ReceptionVehiclesPage() {
         isLoading={query.isLoading}
         isError={query.isError}
         error={query.error}
-        totalCount={query.data?.totalCount ?? 0}
-        page={table.page}
-        pageSize={table.pageSize}
-        onPageChange={table.setPage}
-        toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por placa/VIN, propietario, marca o modelo" />}
+        totalCount={filtered.length}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        toolbar={<TableToolbar search={search} onSearchChange={setSearch} placeholder="Buscar por placa, VIN, propietario, marca o modelo" />}
       />
     </>
   );
@@ -161,14 +209,22 @@ export function ReceptionVehiclesPage() {
 
 export function ReceptionVehicleCreatePage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [params] = new URLSearchParams(window.location.search) ? [new URLSearchParams(window.location.search)] : [new URLSearchParams()];
   const customers = useQuery({ queryKey: ["reception-customers-select"], queryFn: () => receptionService.customers({ pageNumber: 1, pageSize: 500 }) });
   const models = useQuery({ queryKey: ["reception-vehicle-models"], queryFn: receptionService.vehicleModels });
   const types = useQuery({ queryKey: ["reception-vehicle-types"], queryFn: receptionService.vehicleTypes });
-  const [form, setForm] = useState({ ownerPersonId: params.get("ownerId") ?? "", modelId: "", vehicleTypeId: "", vin: "", year: String(new Date().getFullYear()), color: "", mileage: "0" });
+  const [form, setForm] = useState({ ownerPersonId: params.get("ownerId") ?? "", modelId: "", vehicleTypeId: "", plate: "", vin: "", year: String(new Date().getFullYear()), color: "", mileage: "0" });
   const mutation = useMutation({
     mutationFn: () => receptionService.createVehicle({ ...form, ownerPersonId: Number(form.ownerPersonId), modelId: Number(form.modelId), vehicleTypeId: Number(form.vehicleTypeId), year: Number(form.year), mileage: Number(form.mileage) }),
-    onSuccess: () => navigate(form.ownerPersonId ? `/reception/customers/${form.ownerPersonId}` : "/reception/vehicles"),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["reception-vehicles-list"] }),
+        queryClient.invalidateQueries({ queryKey: ["reception-customer-vehicles", form.ownerPersonId] }),
+        queryClient.invalidateQueries({ queryKey: ["reception-customers-list"] }),
+      ]);
+      navigate(form.ownerPersonId ? `/reception/customers/${form.ownerPersonId}` : "/reception/vehicles", { replace: true });
+    },
   });
   const submit = (event: FormEvent) => { event.preventDefault(); mutation.mutate(); };
   return (
@@ -178,7 +234,8 @@ export function ReceptionVehicleCreatePage() {
       <Card className="p-5">
         <form className="grid gap-4 md:grid-cols-2" onSubmit={submit}>
           <label className="text-sm font-semibold text-slate-700">Cliente propietario<select className={fieldClass()} required value={form.ownerPersonId} onChange={(event) => setForm({ ...form, ownerPersonId: event.target.value })}><option value="">Seleccionar</option>{(customers.data?.data ?? []).map((customer) => <option key={customer.id} value={customer.id}>{customer.fullName} - {customer.documentNumber}</option>)}</select></label>
-          <label className="text-sm font-semibold text-slate-700">Placa/VIN<input className={fieldClass()} required minLength={6} value={form.vin} onChange={(event) => setForm({ ...form, vin: event.target.value.toUpperCase() })} /></label>
+          <label className="text-sm font-semibold text-slate-700">Placa<input className={fieldClass()} required minLength={5} maxLength={10} value={form.plate} onChange={(event) => setForm({ ...form, plate: event.target.value.toUpperCase() })} /></label>
+          <label className="text-sm font-semibold text-slate-700">VIN<input className={fieldClass()} required minLength={17} maxLength={17} value={form.vin} onChange={(event) => setForm({ ...form, vin: event.target.value.toUpperCase() })} /></label>
           <label className="text-sm font-semibold text-slate-700">Modelo<select className={fieldClass()} required value={form.modelId} onChange={(event) => setForm({ ...form, modelId: event.target.value })}><option value="">Seleccionar</option>{(models.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <label className="text-sm font-semibold text-slate-700">Tipo<select className={fieldClass()} required value={form.vehicleTypeId} onChange={(event) => setForm({ ...form, vehicleTypeId: event.target.value })}><option value="">Seleccionar</option>{(types.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <label className="text-sm font-semibold text-slate-700">Año<input className={fieldClass()} type="number" required value={form.year} onChange={(event) => setForm({ ...form, year: event.target.value })} /></label>
@@ -210,7 +267,7 @@ export function ReceptionVehicleDetailPage() {
   return (
     <>
       <PageHeader title={vehicle.data ? `${vehicle.data.brand} ${vehicle.data.model}` : "Vehículo"} description="Propietario actual, datos técnicos e historial de propietarios." actions={<Link to="/reception/vehicles"><Button variant="secondary" icon={<ArrowLeft className="h-4 w-4" />}>Regresar</Button></Link>} />
-      {vehicle.data ? <Card className="mb-5 p-5"><div className="grid gap-4 md:grid-cols-4"><Info label="Placa/VIN" value={vehicle.data.vin} /><Info label="Propietario actual" value={vehicle.data.currentOwner} /><Info label="Tipo" value={vehicle.data.type} /><Info label="Kilometraje" value={`${vehicle.data.mileage.toLocaleString("es-CO")} km`} /></div></Card> : null}
+      {vehicle.data ? <Card className="mb-5 p-5"><div className="grid gap-4 md:grid-cols-5"><Info label="Placa" value={vehicle.data.plate} /><Info label="VIN" value={vehicle.data.vin} /><Info label="Propietario actual" value={vehicle.data.currentOwner} /><Info label="Tipo" value={vehicle.data.type} /><Info label="Kilometraje" value={`${vehicle.data.mileage.toLocaleString("es-CO")} km`} /></div></Card> : null}
       {transferMutation.isError ? <ApiErrorAlert error={transferMutation.error} action="No se pudo transferir el vehículo" className="mb-4" /> : null}
       <Card className="mb-5 p-5">
         <h2 className="font-bold text-slate-900">Transferir propietario</h2>
@@ -228,7 +285,7 @@ export function ReceptionVehicleDetailPage() {
 }
 
 function VehicleSimpleTable({ vehicles }: { vehicles: ReceptionVehicle[] }) {
-  return <Card className="overflow-hidden"><table className="w-full table-fixed text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-3 py-3">Placa/VIN</th><th className="px-3 py-3">Vehículo</th><th className="px-3 py-3">Kilometraje</th><th className="px-3 py-3">Acciones</th></tr></thead><tbody className="divide-y divide-slate-100">{vehicles.length === 0 ? <tr><td className="px-3 py-5 font-semibold text-slate-500" colSpan={4}>No hay vehículos asociados.</td></tr> : null}{vehicles.map((vehicle) => <tr key={vehicle.id}><td className="px-3 py-3">{vehicle.vin}</td><td className="px-3 py-3">{vehicle.brand} {vehicle.model}</td><td className="px-3 py-3">{vehicle.mileage.toLocaleString("es-CO")} km</td><td className="px-3 py-3"><Link to={`/reception/vehicles/${vehicle.id}`}><Button variant="secondary">Ver</Button></Link></td></tr>)}</tbody></table></Card>;
+  return <Card className="overflow-hidden"><table className="w-full table-fixed text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-3 py-3">Placa</th><th className="px-3 py-3">VIN</th><th className="px-3 py-3">Vehículo</th><th className="px-3 py-3">Kilometraje</th><th className="px-3 py-3">Acciones</th></tr></thead><tbody className="divide-y divide-slate-100">{vehicles.length === 0 ? <tr><td className="px-3 py-5 font-semibold text-slate-500" colSpan={5}>No hay vehículos asociados.</td></tr> : null}{vehicles.map((vehicle) => <tr key={vehicle.id}><td className="px-3 py-3">{vehicle.plate}</td><td className="px-3 py-3">{vehicle.vin}</td><td className="px-3 py-3">{vehicle.brand} {vehicle.model}</td><td className="px-3 py-3">{vehicle.mileage.toLocaleString("es-CO")} km</td><td className="px-3 py-3"><Link to={`/reception/vehicles/${vehicle.id}`}><Button variant="secondary">Ver</Button></Link></td></tr>)}</tbody></table></Card>;
 }
 
 export function ReceptionPaymentsPage() {

@@ -15,8 +15,8 @@ export function TablePagination({ page, pageSize, totalCount, onPageChange }: Ta
   const canNext = to < totalCount;
 
   return (
-    <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-      <span>
+    <div className="flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+      <span className="font-medium">
         Mostrando {from}-{to} de {totalCount} registros
       </span>
       <div className="flex gap-2">

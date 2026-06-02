@@ -14,6 +14,7 @@ export type ReceptionCustomer = {
 
 export type ReceptionVehicle = {
   id: string;
+  plate: string;
   vin: string;
   brand: string;
   model: string;
@@ -80,6 +81,7 @@ function mapCustomer(item: Record<string, unknown>): ReceptionCustomer {
 function mapVehicle(item: Record<string, unknown>): ReceptionVehicle {
   return {
     id: readId(item),
+    plate: String(item.plate ?? item.Plate ?? item.vin ?? item.Vin ?? ""),
     vin: String(item.vin ?? item.Vin ?? ""),
     brand: String(item.brand ?? item.Brand ?? ""),
     model: String(item.model ?? item.Model ?? ""),

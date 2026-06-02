@@ -1,6 +1,5 @@
 import {
   BarChart3,
-  Boxes,
   Car,
   ClipboardList,
   CreditCard,
@@ -14,7 +13,6 @@ import {
   Plus,
   Receipt,
   Settings,
-  ShoppingCart,
   Send,
   Store,
   UserCog,
@@ -47,7 +45,6 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "Órdenes", path: "/service-orders", icon: ClipboardList },
     { label: "Inventario", path: "/parts", icon: Package },
     { label: "Bodega", path: "/warehouse/products", icon: Store },
-    { label: "Almacén", path: "/inventory/products", icon: Boxes },
     { label: "Servicios del taller", path: "/workshop/services", icon: Wrench },
     { label: "Facturación", path: "/invoices", icon: Receipt },
     { label: "Pagos", path: "/payments", icon: CreditCard },
@@ -57,6 +54,8 @@ export const navByRole: Record<Role, NavItem[]> = {
   ],
   Receptionist: [
     { label: "Dashboard", path: "/dashboard/reception", icon: Gauge },
+    { label: "Clientes", path: "/reception/customers", icon: Users },
+    { label: "Vehículos", path: "/reception/vehicles", icon: Car },
     { label: "Facturas", path: "/invoices", icon: FileText },
     { label: "Entregas", path: "/reception/deliveries", icon: PackageCheck },
   ],
@@ -89,7 +88,6 @@ export const navByRole: Record<Role, NavItem[]> = {
   WarehouseChief: [
     { label: "Dashboard stock", path: "/dashboard/warehouse-chief", icon: Gauge },
     { label: "Stock operativo", path: "/warehouse/products", icon: Package },
-    { label: "Solicitar reposición", path: "/warehouse/products/new", icon: ShoppingCart },
     { label: "Reposiciones enviadas", path: "/warehouse/stock-submissions", icon: Send },
     { label: "Bajo stock", path: "/parts/low-stock", icon: BarChart3 },
   ],

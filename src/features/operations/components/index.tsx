@@ -304,11 +304,19 @@ export function WorkshopChiefRequestDrawer({
             {request.decisionHistory.map((item) => <li key={item}>{item}</li>)}
           </ul>
         </Card>
-        <WorkshopChiefCommentBox value={comment} onChange={setComment} />
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="secondary" disabled={!canReview} isLoading={isWorking} onClick={() => onReject?.(request, comment)}>Denegar solicitud</Button>
-          <Button disabled={!canReview} isLoading={isWorking} onClick={() => onApprove?.(request, comment)}>Aprobar y enviar al cliente</Button>
-        </div>
+        {canReview ? (
+          <>
+            <WorkshopChiefCommentBox value={comment} onChange={setComment} />
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="secondary" isLoading={isWorking} onClick={() => onReject?.(request, comment)}>Denegar solicitud</Button>
+              <Button isLoading={isWorking} onClick={() => onApprove?.(request, comment)}>Aprobar y enviar al cliente</Button>
+            </div>
+          </>
+        ) : (
+          <p className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-600">
+            Esta solicitud ya fue revisada por el jefe de taller. Solo está disponible para consulta.
+          </p>
+        )}
       </div>
     </Drawer>
   );

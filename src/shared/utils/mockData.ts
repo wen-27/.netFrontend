@@ -7,9 +7,9 @@ export const mockPersons: Person[] = [
 ];
 
 export const mockVehicles: Vehicle[] = [
-  { id: "1", vin: "9BWZZZ377VT004251", brand: "Toyota", model: "Hilux", type: "Pickup", year: 2022, mileage: 45210, currentOwner: "Laura Méndez", activeOrders: 1 },
-  { id: "2", vin: "3FA6P0H75ER208976", brand: "Ford", model: "Fusion", type: "Sedán", year: 2019, mileage: 83200, currentOwner: "Transporte Norte SAS", activeOrders: 2 },
-  { id: "3", vin: "KMHD84LF2HU123987", brand: "Hyundai", model: "Elantra", type: "Sedán", year: 2021, mileage: 31000, currentOwner: "Carlos Rojas", activeOrders: 0 },
+  { id: "1", plate: "HIL202", vin: "9BWZZZ377VT004251", brand: "Toyota", model: "Hilux", type: "Pickup", year: 2022, mileage: 45210, currentOwner: "Laura Méndez", activeOrders: 1 },
+  { id: "2", plate: "FUS819", vin: "3FA6P0H75ER208976", brand: "Ford", model: "Fusion", type: "Sedán", year: 2019, mileage: 83200, currentOwner: "Transporte Norte SAS", activeOrders: 2 },
+  { id: "3", plate: "ELA321", vin: "KMHD84LF2HU123987", brand: "Hyundai", model: "Elantra", type: "Sedán", year: 2021, mileage: 31000, currentOwner: "Carlos Rojas", activeOrders: 0 },
 ];
 
 export const mockServiceOrders: ServiceOrder[] = [

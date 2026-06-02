@@ -21,11 +21,12 @@ export type RegisterClientRequest = {
   middleName: string | null;
   lastName: string;
   secondLastName: string | null;
-  birthDate: string;
-  genderId: number;
+  birthDate: string | null;
+  genderId: number | null;
   addressId: number | null;
   email: string;
   password: string;
-  phoneCountryId: number;
-  phoneNumber: string;
+  phoneCountryId: number | null;
+  phoneNumber: string | null;
+  addressText?: string | null;
 };

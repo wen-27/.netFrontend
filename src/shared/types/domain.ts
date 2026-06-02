@@ -16,6 +16,7 @@ export type Person = {
 
 export type Vehicle = {
   id: string;
+  plate: string;
   vin: string;
   brand: string;
   model: string;

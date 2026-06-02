@@ -12,6 +12,7 @@ import { Vehicle } from "../../../shared/types/domain";
 import { vehiclesService } from "../services/vehiclesService";
 
 const columns: ColumnDef<Vehicle>[] = [
+  { header: "Placa", accessorKey: "plate" },
   { header: "VIN", accessorKey: "vin" },
   { header: "Marca", accessorKey: "brand" },
   { header: "Modelo", accessorKey: "model" },
@@ -30,8 +31,8 @@ export function VehiclesListPage() {
 
   return (
     <>
-      <PageHeader title="Vehículos" description="Consulta por VIN, cliente, marca, modelo y tipo de vehículo." actions={<Button icon={<Plus className="h-4 w-4" />}><Link to="/vehicles/new">Registrar vehículo</Link></Button>} />
-      <DataTable data={query.data?.data ?? []} columns={columns} isLoading={query.isLoading} isError={query.isError} error={query.error} totalCount={query.data?.totalCount ?? 0} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por VIN, propietario o marca" />} />
+      <PageHeader title="Vehículos" description="Consulta por placa, VIN, cliente, marca, modelo y tipo de vehículo." actions={<Button icon={<Plus className="h-4 w-4" />}><Link to="/vehicles/new">Registrar vehículo</Link></Button>} />
+      <DataTable data={query.data?.data ?? []} columns={columns} isLoading={query.isLoading} isError={query.isError} error={query.error} totalCount={query.data?.totalCount ?? 0} page={table.page} pageSize={table.pageSize} onPageChange={table.setPage} toolbar={<TableToolbar search={table.search} onSearchChange={table.setSearch} placeholder="Buscar por placa, VIN, propietario o marca" />} />
     </>
   );
 }

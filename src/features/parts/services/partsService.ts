@@ -33,9 +33,19 @@ export const partsService = {
   lowStock: (params: QueryParams) => listStockParts(params, "low"),
   purchases: (params: QueryParams) => getPaginated<Purchase>("/api/partpurchases", params),
   getById: (id: string) => apiClient.get(`/api/parts/${id}`),
-  create: (payload: { partCategoryId: number; partBrandId: number | null; code: string; description: string; stock: number; minimumStock: number; unitPrice: number; isActive: boolean }) =>
-    apiClient.post("/api/parts", payload),
-  update: (id: string, payload: unknown) => apiClient.put(`/api/parts/${id}`, payload),
+  inventoryProducts: () => apiClient.get<Record<string, unknown>[]>("/api/inventory/products").then((response) => response.data),
+  inventoryProduct: async (id: string) => {
+    const response = await apiClient.get<Record<string, unknown>[]>("/api/inventory/products");
+    const item = response.data.find((product) => String(product.id ?? product.Id) === id);
+    if (!item) throw new Error("El repuesto no existe.");
+    return item;
+  },
+  categories: () => apiClient.get<Record<string, unknown>[]>("/api/inventory/categories").then((response) => response.data),
+  brands: () => apiClient.get<Record<string, unknown>[]>("/api/inventory/brands").then((response) => response.data),
+  create: (payload: { partCategoryId: number; partBrandId: number | null; code: string; description: string; minimumStock: number; unitPrice: number; isActive: boolean }) =>
+    apiClient.post("/api/inventory/products", payload),
+  update: (id: string, payload: { partCategoryId: number; partBrandId: number | null; code: string; description: string; minimumStock: number; unitPrice: number; isActive: boolean }) =>
+    apiClient.put(`/api/inventory/products/${id}`, payload),
   listOrderServiceParts: (params: QueryParams) => getPaginated("/api/orderserviceparts", params, []),
   createOrderServicePart: (payload: { orderServiceId: number; partId: number; quantity: number; appliedUnitPrice: number }) =>
     apiClient.post("/api/orderserviceparts", payload),

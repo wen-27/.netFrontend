@@ -8,6 +8,7 @@ import { Card } from "../../../shared/components/ui/Card";
 import { FormInput } from "../../../shared/components/forms/FormInput";
 import { FormSelect } from "../../../shared/components/forms/FormSelect";
 import { authService } from "../services/authService";
+import { AuthShell } from "../components/AuthShell";
 
 const schema = z.object({
   documentType: z.string().min(1, "Selecciona un tipo de documento"),
@@ -54,9 +55,7 @@ export function RegisterClientPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-surface p-4">
-      <Card className="w-full max-w-3xl p-6">
-        <h1 className="text-2xl font-bold text-slate-950">Registro de cliente</h1>
+    <AuthShell title="Registro de cliente" description="Crea tu acceso para consultar órdenes, aprobaciones, mensajes y pagos." wide>
         <form className="mt-5 grid gap-4 md:grid-cols-2" onSubmit={handleSubmit(onSubmit)}>
           <FormSelect label="Tipo de documento" registration={register("documentType")} error={errors.documentType} options={[{ label: "Cédula", value: "1" }, { label: "NIT", value: "2" }, { label: "Pasaporte", value: "3" }]} />
           <FormInput label="Número de documento" registration={register("documentNumber")} error={errors.documentNumber} />
@@ -74,7 +73,6 @@ export function RegisterClientPage() {
             <Button type="submit" isLoading={isSubmitting}>Crear cuenta</Button>
           </div>
         </form>
-      </Card>
-    </main>
+    </AuthShell>
   );
 }

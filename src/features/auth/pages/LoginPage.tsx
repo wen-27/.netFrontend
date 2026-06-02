@@ -5,11 +5,11 @@ import { useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { Button } from "../../../shared/components/ui/Button";
-import { Card } from "../../../shared/components/ui/Card";
 import { FormInput } from "../../../shared/components/forms/FormInput";
 import { useAuth } from "../../../shared/hooks/useAuth";
 import { dashboardByRole } from "../../../shared/components/layout/navigation";
 import { authService } from "../services/authService";
+import { AuthShell } from "../components/AuthShell";
 
 const schema = z.object({
   email: z.string().email("Ingresa un email válido"),
@@ -34,29 +34,24 @@ export function LoginPage() {
       const nextRole = useAuth.getState().role;
       navigate(nextRole ? dashboardByRole[nextRole] : "/dashboard/client", { replace: true });
     } catch {
-      setServerError("Credenciales inválidas o servicio no disponible.");
+      setServerError("Credenciales incorrectas.");
     }
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-surface p-4">
-      <Card className="w-full max-w-md p-6">
-        <div className="mb-6">
-          <p className="text-sm font-black text-blue-600">AutoTallerManager</p>
-          <h1 className="mt-2 text-2xl font-bold text-slate-950">Iniciar sesión</h1>
-          <p className="mt-1 text-sm text-slate-500">Accede al panel operativo del taller.</p>
-        </div>
+    <AuthShell title="Iniciar sesión" description="Accede al panel operativo del taller con tu rol asignado.">
         <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
           <FormInput label="Email" type="email" autoComplete="email" registration={register("email")} error={errors.email} />
           <FormInput label="Contraseña" type="password" autoComplete="current-password" registration={register("password")} error={errors.password} />
-          {serverError ? <p className="rounded-md bg-red-50 p-3 text-sm font-semibold text-red-700">{serverError}</p> : null}
-          <Button className="w-full" type="submit" isLoading={isSubmitting} icon={<LogIn className="h-4 w-4" />}>Iniciar sesión</Button>
+          {serverError ? <p className="rounded-md bg-red-50 p-3 text-sm font-semibold text-red-700" role="alert">{serverError}</p> : null}
+          <Button className="w-full" type="submit" isLoading={isSubmitting} icon={<LogIn className="h-4 w-4" />}>
+            {serverError ? "Intentar de nuevo" : "Iniciar sesión"}
+          </Button>
         </form>
         <div className="mt-5 flex justify-between text-sm font-semibold">
           <Link className="text-blue-700 hover:underline" to="/auth/register-client">Registro cliente</Link>
           <Link className="text-slate-600 hover:underline" to="/auth/forgot-password">Recuperar contraseña</Link>
         </div>
-      </Card>
-    </main>
+    </AuthShell>
   );
 }

@@ -31,6 +31,7 @@ import { formatCurrency, formatDateTime } from "../../../shared/utils/formatters
 import { getPaymentStatusLabel, getPaymentStatusTone } from "../../../shared/utils/statusLabels";
 import { formatApiError } from "../../../shared/utils/apiErrors";
 import { AdditionalRequest, ClientPayment, MechanicDiagnostic, OrderServiceItem, ServiceOrder, StockMovement, StockSubmission, WarehouseProduct } from "../../../shared/types/domain";
+import { useAuth } from "../../../shared/hooks/useAuth";
 import { serviceOrdersService } from "../../service-orders/services/serviceOrdersService";
 import {
   AdditionalRequestStatusBadge,
@@ -233,11 +234,13 @@ function StockProductsTable({
   products,
   onMovement,
   showInventoryActions = false,
+  editReturnPath,
   footer,
 }: {
   products: WarehouseProduct[];
   onMovement?: (product: WarehouseProduct, type: "in" | "out") => void;
   showInventoryActions?: boolean;
+  editReturnPath?: string;
   footer?: React.ReactNode;
 }) {
   const hasActions = Boolean(showInventoryActions || onMovement);
@@ -278,7 +281,11 @@ function StockProductsTable({
                         <Button variant="secondary" className="min-h-8 justify-center px-2 text-xs" icon={<PackageMinus className="h-4 w-4 shrink-0" />} disabled={productNumber(product, 0, "quantity", "stock", "Stock") <= 0} onClick={() => onMovement(product, "out")}>Salida</Button>
                       </>
                     ) : null}
-                    {showInventoryActions ? <Link to={`/parts/${product.id}/edit`}><Button variant="secondary" className="min-h-8 w-full px-2 text-xs">Editar</Button></Link> : null}
+                    {showInventoryActions ? (
+                      <Link to={`/parts/${product.id}/edit${editReturnPath ? `?returnTo=${encodeURIComponent(editReturnPath)}` : ""}`}>
+                        <Button variant="secondary" className="min-h-8 w-full px-2 text-xs">Editar</Button>
+                      </Link>
+                    ) : null}
                   </div>
                 </td>
               ) : null}
@@ -830,13 +837,18 @@ export function WorkshopChiefRequestDetailPage() {
                 <textarea
                   className="mt-1 min-h-24 w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                   value={comment}
+                  readOnly={!canReview}
                   onChange={(event) => setComment(event.target.value)}
                 />
               </label>
-              <div className="mt-4 flex flex-wrap justify-end gap-2">
-                <Button variant="secondary" disabled={!canReview} isLoading={isWorking} onClick={() => rejectMutation.mutate()}>Denegar solicitud</Button>
-                <Button disabled={!canReview} isLoading={isWorking} onClick={() => approveMutation.mutate()}>Aprobar y enviar al cliente</Button>
-              </div>
+              {canReview ? (
+                <div className="mt-4 flex flex-wrap justify-end gap-2">
+                  <Button variant="secondary" isLoading={isWorking} onClick={() => rejectMutation.mutate()}>Denegar solicitud</Button>
+                  <Button isLoading={isWorking} onClick={() => approveMutation.mutate()}>Aprobar y enviar al cliente</Button>
+                </div>
+              ) : (
+                <p className="mt-3 text-sm font-semibold text-slate-500">Esta solicitud ya fue revisada por el jefe de taller. Solo está disponible para consulta.</p>
+              )}
             </Card>
           </div>
 
@@ -1264,6 +1276,8 @@ export function ClientHistoryPage() {
 }
 
 export function WarehouseProductsPage({ embedded = false }: { embedded?: boolean }) {
+  const role = useAuth((state) => state.role);
+  const canEditStock = role === "Admin";
   const [search, setSearch] = useState("");
   const [stockStatus, setStockStatus] = useState("");
   const [page, setPage] = useState(1);
@@ -1278,7 +1292,13 @@ export function WarehouseProductsPage({ embedded = false }: { embedded?: boolean
   const pagedProducts = useMemo(() => data.slice((page - 1) * pageSize, page * pageSize), [data, page]);
   return (
     <>
-      {!embedded ? <PageHeader title="Stock operativo" description="Cantidades reales disponibles y movimientos de repuestos." actions={<Link to="/warehouse/products/new"><Button variant="secondary" icon={<Plus className="h-4 w-4" />}>Solicitar reposición</Button></Link>} /> : null}
+      {!embedded ? (
+        <PageHeader
+          title="Stock operativo"
+          description="Cantidades reales disponibles y movimientos de repuestos."
+          actions={<Link to="/warehouse/products/new"><Button icon={<Plus className="h-4 w-4" />}>Solicitar reposición</Button></Link>}
+        />
+      ) : null}
       {isError ? <ApiErrorAlert error={error} action="No se pudo cargar el stock" /> : null}
       <Card className={embedded ? "mt-5 p-4" : "p-4"}>
         <div className="grid gap-3 md:grid-cols-[1fr_220px]">
@@ -1300,6 +1320,8 @@ export function WarehouseProductsPage({ embedded = false }: { embedded?: boolean
         <StockProductsTable
           products={pagedProducts}
           onMovement={(product, type) => setMovement({ product, type })}
+          showInventoryActions={canEditStock}
+          editReturnPath="/warehouse/products"
           footer={<TablePagination page={page} pageSize={pageSize} totalCount={data.length} onPageChange={setPage} />}
         />
       </div>
@@ -1315,22 +1337,27 @@ export function WarehouseProductsPage({ embedded = false }: { embedded?: boolean
 export function WarehouseProductFormPage() {
   return (
     <>
-      <PageHeader title="Solicitar reposición" description="Registra el producto, calcula el precio y envía la reposición al Jefe de Almacén." />
+      <PageHeader
+        title="Solicitar reposición"
+        description="Registra el producto, calcula el precio y envía la reposición al Jefe de Almacén."
+        actions={<Link to="/warehouse/products"><Button variant="secondary" icon={<ArrowLeft className="h-4 w-4" />}>Regresar</Button></Link>}
+      />
       <StockSubmissionForm />
     </>
   );
 }
 
 export function WarehouseStockSubmissionsPage() {
-  const { data = [] } = useFallbackQuery(["warehouse-submissions"], getStockSubmissions);
+  const navigate = useNavigate();
+  const { data = [], isError, error } = useFallbackQuery(["warehouse-submissions"], getStockSubmissions);
   return (
     <>
       <PageHeader
         title="Envíos a almacén"
         description="Stock enviado a revisión, rechazado o aprobado por Jefe de Almacén."
-        actions={<Link to="/warehouse/products/new"><Button icon={<Plus className="h-4 w-4" />}>Solicitar reposición</Button></Link>}
       />
-      <StockSubmissionList submissions={data} />
+      {isError ? <ApiErrorAlert error={error} action="No se pudieron cargar las reposiciones enviadas" /> : null}
+      <StockSubmissionList submissions={data} onSelect={(submission) => navigate(`/warehouse/stock-submissions/${submission.submissionId}`)} />
     </>
   );
 }
@@ -1642,6 +1669,10 @@ function RequestsTable({
         <tbody className="divide-y divide-slate-100">
           {pagedRequests.map((request) => (
             <tr key={request.id}>
+              {(() => {
+                const canReviewRequest = request.status === "PendingWorkshopChiefApproval";
+                return (
+                  <>
               {!compact ? <td className="break-words px-3 py-3">{request.createdAt}</td> : null}
               <td className="break-words px-3 py-3">{request.mechanic}</td>
               <td className="break-words px-3 py-3">{request.orderCode}</td>
@@ -1668,11 +1699,18 @@ function RequestsTable({
                     ) : (
                       <Button variant="secondary" className="min-h-9 w-full px-2 text-xs" onClick={() => setSelected(request)}>Ver</Button>
                     )}
-                      <Button variant="secondary" className="min-h-9 w-full px-2 text-xs" disabled={request.status !== "PendingWorkshopChiefApproval"} isLoading={isWorking} onClick={() => approve(request)}>Aprobar</Button>
-                      <Button variant="secondary" className="min-h-9 w-full px-2 text-xs" disabled={request.status !== "PendingWorkshopChiefApproval"} isLoading={isWorking} onClick={() => reject(request)}>Denegar</Button>
+                    {canReviewRequest ? (
+                      <>
+                        <Button variant="secondary" className="min-h-9 w-full px-2 text-xs" isLoading={isWorking} onClick={() => approve(request)}>Aprobar</Button>
+                        <Button variant="secondary" className="min-h-9 w-full px-2 text-xs" isLoading={isWorking} onClick={() => reject(request)}>Denegar</Button>
+                      </>
+                    ) : null}
                   </div>
                 </td>
               ) : null}
+                  </>
+                );
+              })()}
             </tr>
           ))}
         </tbody>
@@ -1762,11 +1800,97 @@ function StockReviewTable({ submissions, onSelect }: { submissions: StockSubmiss
   );
 }
 
-function StockSubmissionList({ submissions }: { submissions: StockSubmission[] }) {
+const stockSubmissionFilterLabels: Record<StockSubmission["status"], string> = {
+  Draft: "Borrador",
+  PendingInventoryManagerReview: "Pendiente de revisión",
+  RejectedByInventoryManager: "Rechazada",
+  ApprovedByInventoryManager: "Aprobada",
+  AddedToInventory: "Agregada al inventario",
+};
+
+function StockSubmissionList({ submissions, onSelect }: { submissions: StockSubmission[]; onSelect: (submission: StockSubmission) => void }) {
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
+  const filteredSubmissions = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return submissions.filter((submission) => {
+      const matchesStatus = !status || submission.status === status;
+      const matchesSearch = !term || [
+        submission.submittedAt,
+        formatDateTime(submission.submittedAt),
+        submission.name,
+        submission.referenceCode,
+        submission.supplier,
+        submission.category,
+        submission.brand,
+        stockSubmissionFilterLabels[submission.status],
+      ].filter(Boolean).some((value) => String(value).toLowerCase().includes(term));
+      return matchesStatus && matchesSearch;
+    });
+  }, [search, status, submissions]);
+  const pagedSubmissions = useMemo(() => filteredSubmissions.slice((page - 1) * pageSize, page * pageSize), [filteredSubmissions, page]);
+  useEffect(() => setPage(1), [search, status]);
+
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      {submissions.map((submission) => <StockSubmissionCard key={submission.submissionId} submission={submission} />)}
-    </div>
+    <Card className="overflow-hidden">
+      <TableToolbar
+        search={search}
+        placeholder="Buscar por producto, referencia, proveedor o estado"
+        onSearchChange={setSearch}
+        showFiltersButton={false}
+      >
+        <select
+          className="min-h-10 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+          value={status}
+          onChange={(event) => setStatus(event.target.value)}
+        >
+          <option value="">Todos los estados</option>
+          {Object.entries(stockSubmissionFilterLabels).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+      </TableToolbar>
+      <table className="w-full table-fixed text-left text-sm">
+        <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+          <tr>
+            <th className="w-[13%] px-3 py-3">Fecha</th>
+            <th className="w-[18%] px-3 py-3">Producto</th>
+            <th className="w-[13%] px-3 py-3">Referencia</th>
+            <th className="w-[15%] px-3 py-3">Proveedor</th>
+            <th className="w-[8%] px-3 py-3">Cant.</th>
+            <th className="w-[12%] px-3 py-3">Precio</th>
+            <th className="w-[13%] px-3 py-3">Estado</th>
+            <th className="w-[8%] px-3 py-3 text-center">Acción</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {pagedSubmissions.length === 0 ? (
+            <tr>
+              <td className="px-3 py-8 text-center font-semibold text-slate-500" colSpan={8}>No hay reposiciones enviadas para mostrar.</td>
+            </tr>
+          ) : null}
+          {pagedSubmissions.map((submission) => (
+            <tr key={submission.submissionId}>
+              <td className="break-words px-3 py-3">{formatDateTime(submission.submittedAt)}</td>
+              <td className="break-words px-3 py-3 font-semibold text-slate-900">{submission.name}</td>
+              <td className="break-words px-3 py-3">{submission.referenceCode}</td>
+              <td className="break-words px-3 py-3">{submission.supplier}</td>
+              <td className="px-3 py-3 font-semibold text-slate-900">{submission.quantity}</td>
+              <td className="break-words px-3 py-3">{formatCurrency(submission.salePrice)}</td>
+              <td className="px-3 py-3"><StockSubmissionStatusBadge status={submission.status} /></td>
+              <td className="px-3 py-3 text-center">
+                <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={() => onSelect(submission)}>Ver</Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="border-t border-slate-200 px-4 py-3">
+        <TablePagination page={page} pageSize={pageSize} totalCount={filteredSubmissions.length} onPageChange={setPage} />
+      </div>
+    </Card>
   );
 }
 
