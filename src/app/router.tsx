@@ -37,6 +37,7 @@ import { UserCreatePage } from "../features/users/pages/UserCreatePage";
 import { UserRolesPage } from "../features/users/pages/UserRolesPage";
 import { AuditsListPage } from "../features/audits/pages/AuditsListPage";
 import { CatalogsPage } from "../features/catalogs/pages/CatalogsPage";
+import { RateLimitTestPage } from "../features/devtools/pages/RateLimitTestPage";
 import {
   ClientApprovalsPage,
   ClientHistoryPage,
@@ -102,6 +103,7 @@ export function AppRouter() {
         <Route element={<AppLayout />}>
           <Route element={<RoleGuard allowedRoles={["Admin"]} />}>
             <Route path="/dashboard/admin" element={<AdminDashboardPage />} />
+            <Route path="/rate-limit-test" element={<RateLimitTestPage />} />
           </Route>
           <Route element={<RoleGuard allowedRoles={["Admin", "Receptionist"]} />}>
             <Route path="/dashboard/reception" element={<ReceptionistDashboardPage />} />

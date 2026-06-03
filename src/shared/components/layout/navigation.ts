@@ -1,4 +1,5 @@
 import {
+  Activity,
   BarChart3,
   Car,
   ClipboardList,
@@ -51,6 +52,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "Usuarios y roles", path: "/users", icon: UserCog },
     { label: "Auditoría", path: "/audits", icon: History },
     { label: "Catálogos", path: "/catalogs", icon: Settings },
+    { label: "Prueba rate limit", path: "/rate-limit-test", icon: Activity },
   ],
   Receptionist: [
     { label: "Dashboard", path: "/dashboard/reception", icon: Gauge },

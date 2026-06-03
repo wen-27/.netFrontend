@@ -31,6 +31,21 @@ async function listStockParts(params: QueryParams, stockStatus?: string): Promis
 export const partsService = {
   list: (params: QueryParams) => listStockParts(params),
   lowStock: (params: QueryParams) => listStockParts(params, "low"),
+  testRateLimit: async () => {
+    const attempts = Array.from({ length: 6 }, async (_, index) => {
+      const response = await apiClient.get("/api/parts", {
+        params: { pageNumber: 1, pageSize: 1 },
+        validateStatus: () => true,
+      });
+
+      return {
+        attempt: index + 1,
+        status: response.status,
+      };
+    });
+
+    return Promise.all(attempts);
+  },
   purchases: (params: QueryParams) => getPaginated<Purchase>("/api/partpurchases", params),
   getById: (id: string) => apiClient.get(`/api/parts/${id}`),
   inventoryProducts: () => apiClient.get<Record<string, unknown>[]>("/api/inventory/products").then((response) => response.data),
